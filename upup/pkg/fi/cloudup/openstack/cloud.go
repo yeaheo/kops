@@ -59,6 +59,7 @@ import (
 const TagNameEtcdClusterPrefix = "k8s.io/etcd/"
 const TagNameRolePrefix = "k8s.io/role/"
 const TagClusterName = "KubernetesCluster"
+const TagRoleMaster = "master"
 
 // ErrNotFound is used to inform that the object is not found
 var ErrNotFound = "Resource not found"
@@ -150,8 +151,8 @@ type OpenstackCloud interface {
 	//CreateSubnet will create a new Neutron subnet
 	CreateSubnet(opt subnets.CreateOptsBuilder) (*subnets.Subnet, error)
 
-	// ListKeypair will return the Nova keypairs
-	ListKeypair(name string) (*keypairs.KeyPair, error)
+	// GetKeypair will return the Nova keypair
+	GetKeypair(name string) (*keypairs.KeyPair, error)
 
 	// CreateKeypair will create a new Nova Keypair
 	CreateKeypair(opt keypairs.CreateOptsBuilder) (*keypairs.KeyPair, error)
@@ -184,6 +185,8 @@ type OpenstackCloud interface {
 
 	GetApiIngressStatus(cluster *kops.Cluster) ([]kops.ApiIngressStatus, error)
 
+	FindClusterStatus(cluster *kops.Cluster) (*kops.ClusterStatus, error)
+
 	// DefaultInstanceType determines a suitable instance type for the specified instance group
 	DefaultInstanceType(cluster *kops.Cluster, ig *kops.InstanceGroup) (string, error)
 
@@ -193,6 +196,8 @@ type OpenstackCloud interface {
 	AssociateToPool(server *servers.Server, poolID string, opts v2pools.CreateMemberOpts) (*v2pools.Member, error)
 
 	CreatePool(opts v2pools.CreateOpts) (*v2pools.Pool, error)
+
+	GetPool(poolID string, memberID string) (*v2pools.Member, error)
 
 	ListPools(v2pools.ListOpts) ([]v2pools.Pool, error)
 
@@ -388,7 +393,32 @@ func (c *openstackCloud) DeleteGroup(g *cloudinstances.CloudInstanceGroup) error
 }
 
 func (c *openstackCloud) GetCloudGroups(cluster *kops.Cluster, instancegroups []*kops.InstanceGroup, warnUnmatched bool, nodes []v1.Node) (map[string]*cloudinstances.CloudInstanceGroup, error) {
-	return nil, fmt.Errorf("openstackCloud::GetCloudGroups not implemented")
+	nodeMap := cloudinstances.GetNodeMap(nodes, cluster)
+	groups := make(map[string]*cloudinstances.CloudInstanceGroup)
+
+	serverGrps, err := c.ListServerGroups()
+	if err != nil {
+		return nil, fmt.Errorf("unable to list servergroups: %v", err)
+	}
+
+	for _, grp := range serverGrps {
+		name := grp.Name
+		instancegroup, err := matchInstanceGroup(name, cluster.ObjectMeta.Name, instancegroups)
+		if err != nil {
+			return nil, fmt.Errorf("error getting instance group for servergroup %q", name)
+		}
+		if instancegroup == nil {
+			if warnUnmatched {
+				glog.Warningf("Found servergrp with no corresponding instance group %q", name)
+			}
+			continue
+		}
+		groups[instancegroup.ObjectMeta.Name], err = c.osBuildCloudInstanceGroup(instancegroup, &grp, nodeMap)
+		if err != nil {
+			return nil, fmt.Errorf("error getting cloud instance group %q: %v", instancegroup.ObjectMeta.Name, err)
+		}
+	}
+	return groups, nil
 }
 
 func (c *openstackCloud) GetCloudTags() map[string]string {
