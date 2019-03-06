@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"k8s.io/kops/pkg/dns"
@@ -88,6 +89,7 @@ type OpenstackCloud interface {
 	NetworkingClient() *gophercloud.ServiceClient
 	LoadBalancerClient() *gophercloud.ServiceClient
 	DNSClient() *gophercloud.ServiceClient
+	UseOctavia() bool
 
 	// Region returns the region which cloud will run on
 	Region() string
@@ -144,6 +146,12 @@ type OpenstackCloud interface {
 
 	//ListExternalNetworks will return the Neutron networks with the router:external property
 	GetExternalNetwork() (*networks.Network, error)
+
+	// GetExternalSubnet will return the subnet for floatingip which is used in external router
+	GetExternalSubnet() (*subnets.Subnet, error)
+
+	// GetLBFloatingSubnet will return the subnet for floatingip which is used in lb
+	GetLBFloatingSubnet() (*subnets.Subnet, error)
 
 	//CreateNetwork will create a new Neutron network
 	CreateNetwork(opt networks.CreateOptsBuilder) (*networks.Network, error)
@@ -268,8 +276,11 @@ type openstackCloud struct {
 	dnsClient      *gophercloud.ServiceClient
 	lbClient       *gophercloud.ServiceClient
 	extNetworkName *string
+	extSubnetName  *string
+	floatingSubnet *string
 	tags           map[string]string
 	region         string
+	useOctavia     bool
 }
 
 var _ fi.Cloud = &openstackCloud{}
@@ -351,24 +362,17 @@ func NewOpenstackCloud(tags map[string]string, spec *kops.ClusterSpec) (Openstac
 		}
 	}
 
-	lbClient, err := os.NewLoadBalancerV2(provider, gophercloud.EndpointOpts{
-		Type:   "network",
-		Region: region,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error building lb client: %v", err)
-	}
-
 	c := &openstackCloud{
 		cinderClient:  cinderClient,
 		neutronClient: neutronClient,
 		novaClient:    novaClient,
-		lbClient:      lbClient,
 		dnsClient:     dnsClient,
 		tags:          tags,
 		region:        region,
+		useOctavia:    false,
 	}
 
+	octavia := false
 	if spec != nil &&
 		spec.CloudConfig != nil &&
 		spec.CloudConfig.Openstack != nil &&
@@ -376,6 +380,9 @@ func NewOpenstackCloud(tags map[string]string, spec *kops.ClusterSpec) (Openstac
 
 		c.extNetworkName = spec.CloudConfig.Openstack.Router.ExternalNetwork
 
+		if spec.CloudConfig.Openstack.Router.ExternalSubnet != nil {
+			c.extSubnetName = spec.CloudConfig.Openstack.Router.ExternalSubnet
+		}
 		if spec.CloudConfig.Openstack.Loadbalancer != nil &&
 			spec.CloudConfig.Openstack.Loadbalancer.FloatingNetworkID == nil &&
 			spec.CloudConfig.Openstack.Loadbalancer.FloatingNetwork != nil {
@@ -388,9 +395,38 @@ func NewOpenstackCloud(tags map[string]string, spec *kops.ClusterSpec) (Openstac
 			}
 			spec.CloudConfig.Openstack.Loadbalancer.FloatingNetworkID = fi.String(lbNet[0].ID)
 		}
+		if spec.CloudConfig.Openstack.Loadbalancer.UseOctavia != nil {
+			octavia = fi.BoolValue(spec.CloudConfig.Openstack.Loadbalancer.UseOctavia)
+		}
+		if spec.CloudConfig.Openstack.Loadbalancer.FloatingSubnet != nil {
+			c.floatingSubnet = spec.CloudConfig.Openstack.Loadbalancer.FloatingSubnet
+		}
 	}
-
+	c.useOctavia = octavia
+	var lbClient *gophercloud.ServiceClient
+	if octavia {
+		glog.V(2).Infof("Openstack using Octavia lbaasv2 api")
+		lbClient, err = os.NewLoadBalancerV2(provider, gophercloud.EndpointOpts{
+			Region: region,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error building lb client: %v", err)
+		}
+	} else {
+		glog.V(2).Infof("Openstack using deprecated lbaasv2 api")
+		lbClient, err = os.NewNetworkV2(provider, gophercloud.EndpointOpts{
+			Region: region,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error building lb client: %v", err)
+		}
+	}
+	c.lbClient = lbClient
 	return c, nil
+}
+
+func (c *openstackCloud) UseOctavia() bool {
+	return c.useOctavia
 }
 
 func (c *openstackCloud) ComputeClient() *gophercloud.ServiceClient {
@@ -433,8 +469,37 @@ func (c *openstackCloud) FindVPCInfo(id string) (*fi.VPCInfo, error) {
 	return nil, fmt.Errorf("openstackCloud::FindVPCInfo not implemented")
 }
 
+// DeleteGroup in openstack will delete servergroup, instances and ports
 func (c *openstackCloud) DeleteGroup(g *cloudinstances.CloudInstanceGroup) error {
-	return fmt.Errorf("openstackCloud::DeleteGroup not implemented")
+	grp := g.Raw.(*servergroups.ServerGroup)
+
+	for _, id := range grp.Members {
+		err := c.DeleteInstanceWithID(id)
+		if err != nil {
+			return fmt.Errorf("Could not delete instance %q: %v", id, err)
+		}
+	}
+
+	ports, err := c.ListPorts(ports.ListOpts{})
+	if err != nil {
+		return fmt.Errorf("Could not list ports %v", err)
+	}
+
+	for _, port := range ports {
+		if strings.Contains(port.Name, grp.Name) {
+			err := c.DeletePort(port.ID)
+			if err != nil {
+				return fmt.Errorf("Could not delete port %q: %v", port.ID, err)
+			}
+		}
+	}
+
+	err = c.DeleteServerGroup(grp.ID)
+	if err != nil {
+		return fmt.Errorf("Could not server group %q: %v", grp.ID, err)
+	}
+
+	return nil
 }
 
 func (c *openstackCloud) GetCloudGroups(cluster *kops.Cluster, instancegroups []*kops.InstanceGroup, warnUnmatched bool, nodes []v1.Node) (map[string]*cloudinstances.CloudInstanceGroup, error) {
