@@ -96,6 +96,9 @@ func run() error {
 	manageEtcd := false
 	flag.BoolVar(&manageEtcd, "manage-etcd", manageEtcd, "Set to manage etcd (deprecated in favor of etcd-manager)")
 
+	var removeDNSNames string
+	flag.StringVar(&removeDNSNames, "remove-dns-names", removeDNSNames, "If set, will remove the DNS records specified")
+
 	// Trick to avoid 'logging before flag.Parse' warning
 	flag.CommandLine.Parse([]string{})
 
@@ -194,7 +197,29 @@ func run() error {
 		if clusterID == "" {
 			clusterID = osVolumes.ClusterID()
 		}
+	} else if cloud == "alicloud" {
+		glog.Info("Initializing AliCloud volumes")
+		aliVolumes, err := protokube.NewALIVolumes()
+		if err != nil {
+			glog.Errorf("Error initializing Aliyun: %q", err)
+			os.Exit(1)
+		}
+		volumes = aliVolumes
+	} else if cloud == "alicloud" {
+		glog.Info("Initializing AliCloud volumes")
+		aliVolumes, err := protokube.NewALIVolumes()
+		if err != nil {
+			glog.Errorf("Error initializing Aliyun: %q", err)
+			os.Exit(1)
+		}
+		volumes = aliVolumes
 
+		if clusterID == "" {
+			clusterID = aliVolumes.ClusterID()
+		}
+		if internalIP == nil {
+			internalIP = aliVolumes.InternalIP()
+		}
 	} else {
 		glog.Errorf("Unknown cloud %q", cloud)
 		os.Exit(1)
@@ -257,6 +282,12 @@ func run() error {
 				return err
 			}
 			gossipName = volumes.(*protokube.OpenstackVolumes).InstanceName()
+		} else if cloud == "alicloud" {
+			gossipSeeds, err = volumes.(*protokube.ALIVolumes).GossipSeeds()
+			if err != nil {
+				return err
+			}
+			gossipName = volumes.(*protokube.ALIVolumes).InstanceID()
 		} else {
 			glog.Fatalf("seed provider for %q not yet implemented", cloud)
 		}
@@ -341,6 +372,11 @@ func run() error {
 			DNSController: dnsController,
 		}
 	}
+
+	go func() {
+		removeDNSRecords(removeDNSNames, dnsProvider)
+	}()
+
 	modelDir := "model/etcd"
 
 	var channels []string

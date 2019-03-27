@@ -34,6 +34,10 @@ type KubeletConfigSpec struct {
 	TLSCertFile string `json:"tlsCertFile,omitempty" flag:"tls-cert-file"`
 	// TODO: Remove unused TLSPrivateKeyFile
 	TLSPrivateKeyFile string `json:"tlsPrivateKeyFile,omitempty" flag:"tls-private-key-file"`
+	// TLSCipherSuites indicates the allowed TLS cipher suite
+	TLSCipherSuites []string `json:"tlsCipherSuites,omitempty" flag:"tls-cipher-suites"`
+	// TLSMinVersion indicates the minimum TLS version allowed
+	TLSMinVersion string `json:"tlsMinVersion,omitempty" flag:"tls-min-version"`
 	// KubeconfigPath is the path of kubeconfig for the kubelet
 	KubeconfigPath string `json:"kubeconfigPath,omitempty" flag:"kubeconfig"`
 	// RequireKubeconfig indicates a kubeconfig is required
@@ -281,6 +285,10 @@ type KubeAPIServerConfig struct {
 	TLSCertFile string `json:"tlsCertFile,omitempty" flag:"tls-cert-file"`
 	// TODO: Remove unused TLSPrivateKeyFile
 	TLSPrivateKeyFile string `json:"tlsPrivateKeyFile,omitempty" flag:"tls-private-key-file"`
+	// TLSCipherSuites indicates the allowed TLS cipher suite
+	TLSCipherSuites []string `json:"tlsCipherSuites,omitempty" flag:"tls-cipher-suites"`
+	// TLSMinVersion indicates the minimum TLS version allowed
+	TLSMinVersion string `json:"tlsMinVersion,omitempty" flag:"tls-min-version"`
 	// TODO: Remove unused TokenAuthFile
 	TokenAuthFile string `json:"tokenAuthFile,omitempty" flag:"token-auth-file"`
 	// AllowPrivileged indicates if we can run privileged containers
@@ -343,6 +351,24 @@ type KubeAPIServerConfig struct {
 	AuditLogMaxSize *int32 `json:"auditLogMaxSize,omitempty" flag:"audit-log-maxsize"`
 	// AuditPolicyFile is the full path to a advanced audit configuration file e.g. /srv/kubernetes/audit.conf
 	AuditPolicyFile string `json:"auditPolicyFile,omitempty" flag:"audit-policy-file"`
+	// AuditWebhookBatchBufferSize is The size of the buffer to store events before batching and writing. Only used in batch mode. (default 10000)
+	AuditWebhookBatchBufferSize *int32 `json:"auditWebhookBatchBufferSize,omitempty" flag:"audit-webhook-batch-buffer-size"`
+	// AuditWebhookBatchMaxSize is The maximum size of a batch. Only used in batch mode. (default 400)
+	AuditWebhookBatchMaxSize *int32 `json:"auditWebhookBatchMaxSize,omitempty" flag:"audit-webhook-batch-max-size"`
+	// AuditWebhookBatchMaxWait is The amount of time to wait before force writing the batch that hadn't reached the max size. Only used in batch mode. (default 30s)
+	AuditWebhookBatchMaxWait *metav1.Duration `json:"auditWebhookBatchMaxWait,omitempty" flag:"audit-webhook-batch-max-wait"`
+	// AuditWebhookBatchThrottleBurst is Maximum number of requests sent at the same moment if ThrottleQPS was not utilized before. Only used in batch mode. (default 15)
+	AuditWebhookBatchThrottleBurst *int32 `json:"auditWebhookBatchThrottleBurst,omitempty" flag:"audit-webhook-batch-throttle-burst"`
+	// AuditWebhookBatchThrottleEnable is Whether batching throttling is enabled. Only used in batch mode. (default true)
+	AuditWebhookBatchThrottleEnable *bool `json:"auditWebhookBatchThrottleEnable,omitempty" flag:"audit-webhook-batch-throttle-enable"`
+	// AuditWebhookBatchThrottleQps is Maximum average number of batches per second. Only used in batch mode. (default 10)
+	AuditWebhookBatchThrottleQps *float32 `json:"auditWebhookBatchThrottleQps,omitempty" flag:"audit-webhook-batch-throttle-qps"`
+	// AuditWebhookConfigFile is Path to a kubeconfig formatted file that defines the audit webhook configuration. Requires the 'AdvancedAuditing' feature gate.
+	AuditWebhookConfigFile string `json:"auditWebhookConfigFile,omitempty" flag:"audit-webhook-config-file"`
+	// AuditWebhookInitialBackoff is The amount of time to wait before retrying the first failed request. (default 10s)
+	AuditWebhookInitialBackoff *metav1.Duration `json:"auditWebhookInitialBackoff,omitempty" flag:"audit-webhook-initial-backoff"`
+	// AuditWebhookMode is Strategy for sending audit events. Blocking indicates sending events should block server responses. Batch causes the backend to buffer and write events asynchronously. Known modes are batch,blocking. (default "batch")
+	AuditWebhookMode string `json:"auditWebhookMode,omitempty" flag:"audit-webhook-mode"`
 	// File with webhook configuration for token authentication in kubeconfig format. The API server will query the remote service to determine authentication for bearer tokens.
 	AuthenticationTokenWebhookConfigFile *string `json:"authenticationTokenWebhookConfigFile,omitempty" flag:"authentication-token-webhook-config-file"`
 	// The duration to cache responses from the webhook token authenticator. Default is 2m. (default 2m0s)
@@ -380,6 +406,11 @@ type KubeAPIServerConfig struct {
 
 	// Memory limit for apiserver in MB (used to configure sizes of caches, etc.)
 	TargetRamMb int32 `json:"targetRamMb,omitempty" flag:"target-ram-mb" flag-empty:"0"`
+
+	// File containing PEM-encoded x509 RSA or ECDSA private or public keys, used to verify ServiceAccount tokens.
+	// The specified file can contain multiple keys, and the flag can be specified multiple times with different files.
+	// If unspecified, --tls-private-key-file is used.
+	ServiceAccountKeyFile []string `json:"serviceAccountKeyFile,omitempty" flag:"service-account-key-file"`
 }
 
 // KubeControllerManagerConfig is the configuration for the controller
@@ -452,6 +483,10 @@ type KubeControllerManagerConfig struct {
 	ExperimentalClusterSigningDuration *metav1.Duration `json:"experimentalClusterSigningDuration,omitempty" flag:"experimental-cluster-signing-duration"`
 	// FeatureGates is set of key=value pairs that describe feature gates for alpha/experimental features.
 	FeatureGates map[string]string `json:"featureGates,omitempty" flag:"feature-gates"`
+	// TLSCipherSuites indicates the allowed TLS cipher suite
+	TLSCipherSuites []string `json:"tlsCipherSuites,omitempty" flag:"tls-cipher-suites"`
+	// TLSMinVersion indicates the minimum TLS version allowed
+	TLSMinVersion string `json:"tlsMinVersion,omitempty" flag:"tls-min-version"`
 }
 
 // CloudControllerManagerConfig is the configuration of the cloud controller
@@ -515,11 +550,13 @@ type OpenstackLoadbalancerConfig struct {
 	FloatingNetworkID *string `json:"floatingNetworkID,omitempty"`
 	FloatingSubnet    *string `json:"floatingSubnet,omitempty"`
 	SubnetID          *string `json:"subnetID,omitempty"`
+	ManageSecGroups   *bool   `json:"manageSecurityGroups,omitempty"`
 }
 
 type OpenstackBlockStorageConfig struct {
-	Version  *string `json:"bs-version,omitempty"`
-	IgnoreAZ *bool   `json:"ignore-volume-az,omitempty"`
+	Version    *string `json:"bs-version,omitempty"`
+	IgnoreAZ   *bool   `json:"ignore-volume-az,omitempty"`
+	OverrideAZ *string `json:"override-volume-az,omitempty"`
 }
 
 // OpenstackMonitor defines the config for a health monitor

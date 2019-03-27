@@ -151,17 +151,32 @@ func (i *Installation) buildSystemdJob() *nodetasks.Service {
 			"OS_AUTH_URL",
 			"OS_REGION_NAME",
 		} {
-			buffer.WriteString("\"")
+			buffer.WriteString("'")
 			buffer.WriteString(envVar)
 			buffer.WriteString("=")
 			buffer.WriteString(os.Getenv(envVar))
-			buffer.WriteString("\" ")
+			buffer.WriteString("' ")
 		}
 	}
 
 	if os.Getenv("DIGITALOCEAN_ACCESS_TOKEN") != "" {
 		buffer.WriteString("\"DIGITALOCEAN_ACCESS_TOKEN=")
 		buffer.WriteString(os.Getenv("DIGITALOCEAN_ACCESS_TOKEN"))
+		buffer.WriteString("\" ")
+	}
+
+	if os.Getenv("OSS_REGION") != "" {
+		buffer.WriteString("\"OSS_REGION=")
+		buffer.WriteString(os.Getenv("OSS_REGION"))
+		buffer.WriteString("\" ")
+	}
+
+	if os.Getenv("ALIYUN_ACCESS_KEY_ID") != "" {
+		buffer.WriteString("\"ALIYUN_ACCESS_KEY_ID=")
+		buffer.WriteString(os.Getenv("ALIYUN_ACCESS_KEY_ID"))
+		buffer.WriteString("\" ")
+		buffer.WriteString("\"ALIYUN_ACCESS_KEY_SECRET=")
+		buffer.WriteString(os.Getenv("ALIYUN_ACCESS_KEY_SECRET"))
 		buffer.WriteString("\" ")
 	}
 

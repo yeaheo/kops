@@ -68,7 +68,7 @@ func (t *ProtokubeBuilder) Build(c *fi.ModelBuilderContext) error {
 		})
 
 		// retrieve the etcd peer certificates and private keys from the keystore
-		if t.UseEtcdTLS() {
+		if !t.UseEtcdManager() && t.UseEtcdTLS() {
 			for _, x := range []string{"etcd", "etcd-peer", "etcd-client"} {
 				if err := t.BuildCertificateTask(c, x, fmt.Sprintf("%s.pem", x)); err != nil {
 					return err
@@ -176,20 +176,20 @@ func (t *ProtokubeBuilder) ProtokubeImageName() string {
 
 // ProtokubeImagePullCommand returns the command to pull the image
 func (t *ProtokubeBuilder) ProtokubeImagePullCommand() string {
-	source := ""
+	var sources []string
 	if t.NodeupConfig.ProtokubeImage != nil {
-		source = t.NodeupConfig.ProtokubeImage.Source
+		sources = t.NodeupConfig.ProtokubeImage.Sources
 	}
-	if source == "" {
+	if len(sources) == 0 {
 		// Nothing to pull; return dummy value
 		return "/bin/true"
 	}
-	if strings.HasPrefix(source, "http:") || strings.HasPrefix(source, "https:") || strings.HasPrefix(source, "s3:") {
+	if strings.HasPrefix(sources[0], "http:") || strings.HasPrefix(sources[0], "https:") || strings.HasPrefix(sources[0], "s3:") {
 		// We preloaded the image; return a dummy value
 		return "/bin/true"
 	}
 
-	return "/usr/bin/docker pull " + t.NodeupConfig.ProtokubeImage.Source
+	return "/usr/bin/docker pull " + sources[0]
 }
 
 // ProtokubeFlags are the flags for protokube
@@ -222,6 +222,10 @@ type ProtokubeFlags struct {
 
 	// ManageEtcd is true if protokube should manage etcd; being replaced by etcd-manager
 	ManageEtcd bool `json:"manageEtcd,omitempty" flag:"manage-etcd"`
+
+	// RemoveDNSNames allows us to remove dns records, so that they can be managed elsewhere
+	// We use it e.g. for the switch to etcd-manager
+	RemoveDNSNames string `json:"removeDNSNames,omitempty" flag:"remove-dns-names"`
 }
 
 // ProtokubeFlags is responsible for building the command line flags for protokube
@@ -364,6 +368,30 @@ func (t *ProtokubeBuilder) ProtokubeFlags(k8sVersion semver.Version) (*Protokube
 		f.ApplyTaints = fi.Bool(true)
 	}
 
+	// Remove DNS names if we're using etcd-manager
+	if !f.ManageEtcd {
+		var names []string
+
+		// Mirroring the logic used to construct DNS names in protokube/pkg/protokube/etcd_cluster.go
+		suffix := fi.StringValue(f.DNSInternalSuffix)
+		if !strings.HasPrefix(suffix, ".") {
+			suffix = "." + suffix
+		}
+
+		for _, c := range t.Cluster.Spec.EtcdClusters {
+			clusterName := "etcd-" + c.Name
+			if clusterName == "etcd-main" {
+				clusterName = "etcd"
+			}
+			for _, m := range c.Members {
+				name := clusterName + "-" + m.Name + suffix
+				names = append(names, name)
+			}
+		}
+
+		f.RemoveDNSNames = strings.Join(names, ",")
+	}
+
 	return f, nil
 }
 
@@ -434,6 +462,25 @@ func (t *ProtokubeBuilder) ProtokubeEnvironmentVariables() string {
 		buffer.WriteString(" ")
 		buffer.WriteString("-e 'DIGITALOCEAN_ACCESS_TOKEN=")
 		buffer.WriteString(os.Getenv("DIGITALOCEAN_ACCESS_TOKEN"))
+		buffer.WriteString("'")
+		buffer.WriteString(" ")
+	}
+
+	if os.Getenv("OSS_REGION") != "" {
+		buffer.WriteString(" ")
+		buffer.WriteString("-e 'OSS_REGION=")
+		buffer.WriteString(os.Getenv("OSS_REGION"))
+		buffer.WriteString("'")
+		buffer.WriteString(" ")
+	}
+
+	if os.Getenv("ALIYUN_ACCESS_KEY_ID") != "" {
+		buffer.WriteString(" ")
+		buffer.WriteString("-e 'ALIYUN_ACCESS_KEY_ID=")
+		buffer.WriteString(os.Getenv("ALIYUN_ACCESS_KEY_ID"))
+		buffer.WriteString("'")
+		buffer.WriteString(" -e 'ALIYUN_ACCESS_KEY_SECRET=")
+		buffer.WriteString(os.Getenv("ALIYUN_ACCESS_KEY_SECRET"))
 		buffer.WriteString("'")
 		buffer.WriteString(" ")
 	}

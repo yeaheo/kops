@@ -2168,6 +2168,7 @@ func autoConvert_v1alpha2_DockerConfig_To_kops_DockerConfig(in *DockerConfig, ou
 	out.IPMasq = in.IPMasq
 	out.IPTables = in.IPTables
 	out.InsecureRegistry = in.InsecureRegistry
+	out.InsecureRegistries = in.InsecureRegistries
 	out.LiveRestore = in.LiveRestore
 	out.LogDriver = in.LogDriver
 	out.LogLevel = in.LogLevel
@@ -2199,6 +2200,7 @@ func autoConvert_kops_DockerConfig_To_v1alpha2_DockerConfig(in *kops.DockerConfi
 	out.IPMasq = in.IPMasq
 	out.IPTables = in.IPTables
 	out.InsecureRegistry = in.InsecureRegistry
+	out.InsecureRegistries = in.InsecureRegistries
 	out.LiveRestore = in.LiveRestore
 	out.LogDriver = in.LogDriver
 	out.LogLevel = in.LogLevel
@@ -2528,6 +2530,7 @@ func Convert_kops_FileAssetSpec_To_v1alpha2_FileAssetSpec(in *kops.FileAssetSpec
 
 func autoConvert_v1alpha2_FlannelNetworkingSpec_To_kops_FlannelNetworkingSpec(in *FlannelNetworkingSpec, out *kops.FlannelNetworkingSpec, s conversion.Scope) error {
 	out.Backend = in.Backend
+	out.IptablesResyncSeconds = in.IptablesResyncSeconds
 	return nil
 }
 
@@ -2538,6 +2541,7 @@ func Convert_v1alpha2_FlannelNetworkingSpec_To_kops_FlannelNetworkingSpec(in *Fl
 
 func autoConvert_kops_FlannelNetworkingSpec_To_v1alpha2_FlannelNetworkingSpec(in *kops.FlannelNetworkingSpec, out *FlannelNetworkingSpec, s conversion.Scope) error {
 	out.Backend = in.Backend
+	out.IptablesResyncSeconds = in.IptablesResyncSeconds
 	return nil
 }
 
@@ -3198,6 +3202,8 @@ func autoConvert_v1alpha2_KubeAPIServerConfig_To_kops_KubeAPIServerConfig(in *Ku
 	out.ClientCAFile = in.ClientCAFile
 	out.TLSCertFile = in.TLSCertFile
 	out.TLSPrivateKeyFile = in.TLSPrivateKeyFile
+	out.TLSCipherSuites = in.TLSCipherSuites
+	out.TLSMinVersion = in.TLSMinVersion
 	out.TokenAuthFile = in.TokenAuthFile
 	out.AllowPrivileged = in.AllowPrivileged
 	out.APIServerCount = in.APIServerCount
@@ -3223,6 +3229,15 @@ func autoConvert_v1alpha2_KubeAPIServerConfig_To_kops_KubeAPIServerConfig(in *Ku
 	out.AuditLogMaxBackups = in.AuditLogMaxBackups
 	out.AuditLogMaxSize = in.AuditLogMaxSize
 	out.AuditPolicyFile = in.AuditPolicyFile
+	out.AuditWebhookBatchBufferSize = in.AuditWebhookBatchBufferSize
+	out.AuditWebhookBatchMaxSize = in.AuditWebhookBatchMaxSize
+	out.AuditWebhookBatchMaxWait = in.AuditWebhookBatchMaxWait
+	out.AuditWebhookBatchThrottleBurst = in.AuditWebhookBatchThrottleBurst
+	out.AuditWebhookBatchThrottleEnable = in.AuditWebhookBatchThrottleEnable
+	out.AuditWebhookBatchThrottleQps = in.AuditWebhookBatchThrottleQps
+	out.AuditWebhookConfigFile = in.AuditWebhookConfigFile
+	out.AuditWebhookInitialBackoff = in.AuditWebhookInitialBackoff
+	out.AuditWebhookMode = in.AuditWebhookMode
 	out.AuthenticationTokenWebhookConfigFile = in.AuthenticationTokenWebhookConfigFile
 	out.AuthenticationTokenWebhookCacheTTL = in.AuthenticationTokenWebhookCacheTTL
 	out.AuthorizationMode = in.AuthorizationMode
@@ -3239,6 +3254,7 @@ func autoConvert_v1alpha2_KubeAPIServerConfig_To_kops_KubeAPIServerConfig(in *Ku
 	out.EtcdQuorumRead = in.EtcdQuorumRead
 	out.MinRequestTimeout = in.MinRequestTimeout
 	out.TargetRamMb = in.TargetRamMb
+	out.ServiceAccountKeyFile = in.ServiceAccountKeyFile
 	return nil
 }
 
@@ -3273,6 +3289,8 @@ func autoConvert_kops_KubeAPIServerConfig_To_v1alpha2_KubeAPIServerConfig(in *ko
 	out.ClientCAFile = in.ClientCAFile
 	out.TLSCertFile = in.TLSCertFile
 	out.TLSPrivateKeyFile = in.TLSPrivateKeyFile
+	out.TLSCipherSuites = in.TLSCipherSuites
+	out.TLSMinVersion = in.TLSMinVersion
 	out.TokenAuthFile = in.TokenAuthFile
 	out.AllowPrivileged = in.AllowPrivileged
 	out.APIServerCount = in.APIServerCount
@@ -3298,6 +3316,15 @@ func autoConvert_kops_KubeAPIServerConfig_To_v1alpha2_KubeAPIServerConfig(in *ko
 	out.AuditLogMaxBackups = in.AuditLogMaxBackups
 	out.AuditLogMaxSize = in.AuditLogMaxSize
 	out.AuditPolicyFile = in.AuditPolicyFile
+	out.AuditWebhookBatchBufferSize = in.AuditWebhookBatchBufferSize
+	out.AuditWebhookBatchMaxSize = in.AuditWebhookBatchMaxSize
+	out.AuditWebhookBatchMaxWait = in.AuditWebhookBatchMaxWait
+	out.AuditWebhookBatchThrottleBurst = in.AuditWebhookBatchThrottleBurst
+	out.AuditWebhookBatchThrottleEnable = in.AuditWebhookBatchThrottleEnable
+	out.AuditWebhookBatchThrottleQps = in.AuditWebhookBatchThrottleQps
+	out.AuditWebhookConfigFile = in.AuditWebhookConfigFile
+	out.AuditWebhookInitialBackoff = in.AuditWebhookInitialBackoff
+	out.AuditWebhookMode = in.AuditWebhookMode
 	out.AuthenticationTokenWebhookConfigFile = in.AuthenticationTokenWebhookConfigFile
 	out.AuthenticationTokenWebhookCacheTTL = in.AuthenticationTokenWebhookCacheTTL
 	out.AuthorizationMode = in.AuthorizationMode
@@ -3314,6 +3341,7 @@ func autoConvert_kops_KubeAPIServerConfig_To_v1alpha2_KubeAPIServerConfig(in *ko
 	out.EtcdQuorumRead = in.EtcdQuorumRead
 	out.MinRequestTimeout = in.MinRequestTimeout
 	out.TargetRamMb = in.TargetRamMb
+	out.ServiceAccountKeyFile = in.ServiceAccountKeyFile
 	return nil
 }
 
@@ -3358,6 +3386,8 @@ func autoConvert_v1alpha2_KubeControllerManagerConfig_To_kops_KubeControllerMana
 	out.HorizontalPodAutoscalerUseRestClients = in.HorizontalPodAutoscalerUseRestClients
 	out.ExperimentalClusterSigningDuration = in.ExperimentalClusterSigningDuration
 	out.FeatureGates = in.FeatureGates
+	out.TLSCipherSuites = in.TLSCipherSuites
+	out.TLSMinVersion = in.TLSMinVersion
 	return nil
 }
 
@@ -3402,6 +3432,8 @@ func autoConvert_kops_KubeControllerManagerConfig_To_v1alpha2_KubeControllerMana
 	out.HorizontalPodAutoscalerUseRestClients = in.HorizontalPodAutoscalerUseRestClients
 	out.ExperimentalClusterSigningDuration = in.ExperimentalClusterSigningDuration
 	out.FeatureGates = in.FeatureGates
+	out.TLSCipherSuites = in.TLSCipherSuites
+	out.TLSMinVersion = in.TLSMinVersion
 	return nil
 }
 
@@ -3558,6 +3590,8 @@ func autoConvert_v1alpha2_KubeletConfigSpec_To_kops_KubeletConfigSpec(in *Kubele
 	out.ClientCAFile = in.ClientCAFile
 	out.TLSCertFile = in.TLSCertFile
 	out.TLSPrivateKeyFile = in.TLSPrivateKeyFile
+	out.TLSCipherSuites = in.TLSCipherSuites
+	out.TLSMinVersion = in.TLSMinVersion
 	out.KubeconfigPath = in.KubeconfigPath
 	out.RequireKubeconfig = in.RequireKubeconfig
 	out.LogLevel = in.LogLevel
@@ -3637,6 +3671,8 @@ func autoConvert_kops_KubeletConfigSpec_To_v1alpha2_KubeletConfigSpec(in *kops.K
 	out.ClientCAFile = in.ClientCAFile
 	out.TLSCertFile = in.TLSCertFile
 	out.TLSPrivateKeyFile = in.TLSPrivateKeyFile
+	out.TLSCipherSuites = in.TLSCipherSuites
+	out.TLSMinVersion = in.TLSMinVersion
 	out.KubeconfigPath = in.KubeconfigPath
 	out.RequireKubeconfig = in.RequireKubeconfig
 	out.LogLevel = in.LogLevel
@@ -4207,6 +4243,7 @@ func Convert_kops_NodeAuthorizerSpec_To_v1alpha2_NodeAuthorizerSpec(in *kops.Nod
 func autoConvert_v1alpha2_OpenstackBlockStorageConfig_To_kops_OpenstackBlockStorageConfig(in *OpenstackBlockStorageConfig, out *kops.OpenstackBlockStorageConfig, s conversion.Scope) error {
 	out.Version = in.Version
 	out.IgnoreAZ = in.IgnoreAZ
+	out.OverrideAZ = in.OverrideAZ
 	return nil
 }
 
@@ -4218,6 +4255,7 @@ func Convert_v1alpha2_OpenstackBlockStorageConfig_To_kops_OpenstackBlockStorageC
 func autoConvert_kops_OpenstackBlockStorageConfig_To_v1alpha2_OpenstackBlockStorageConfig(in *kops.OpenstackBlockStorageConfig, out *OpenstackBlockStorageConfig, s conversion.Scope) error {
 	out.Version = in.Version
 	out.IgnoreAZ = in.IgnoreAZ
+	out.OverrideAZ = in.OverrideAZ
 	return nil
 }
 
@@ -4324,6 +4362,7 @@ func autoConvert_v1alpha2_OpenstackLoadbalancerConfig_To_kops_OpenstackLoadbalan
 	out.FloatingNetworkID = in.FloatingNetworkID
 	out.FloatingSubnet = in.FloatingSubnet
 	out.SubnetID = in.SubnetID
+	out.ManageSecGroups = in.ManageSecGroups
 	return nil
 }
 
@@ -4340,6 +4379,7 @@ func autoConvert_kops_OpenstackLoadbalancerConfig_To_v1alpha2_OpenstackLoadbalan
 	out.FloatingNetworkID = in.FloatingNetworkID
 	out.FloatingSubnet = in.FloatingSubnet
 	out.SubnetID = in.SubnetID
+	out.ManageSecGroups = in.ManageSecGroups
 	return nil
 }
 

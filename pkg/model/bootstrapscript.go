@@ -83,7 +83,7 @@ func (b *BootstrapScript) buildEnvironmentVariables(cluster *kops.Cluster) (map[
 			"OS_AUTH_URL",
 			"OS_REGION_NAME",
 		} {
-			env[envVar] = os.Getenv(envVar)
+			env[envVar] = fmt.Sprintf("'%s'", os.Getenv(envVar))
 		}
 	}
 
@@ -103,6 +103,23 @@ func (b *BootstrapScript) buildEnvironmentVariables(cluster *kops.Cluster) (map[
 			glog.Warningf("unable to determine cluster region")
 		} else {
 			env["AWS_REGION"] = region
+		}
+	}
+
+	if kops.CloudProviderID(cluster.Spec.CloudProvider) == kops.CloudProviderALI {
+		region := os.Getenv("OSS_REGION")
+		if region != "" {
+			env["OSS_REGION"] = os.Getenv("OSS_REGION")
+		}
+
+		aliID := os.Getenv("ALIYUN_ACCESS_KEY_ID")
+		if aliID != "" {
+			env["ALIYUN_ACCESS_KEY_ID"] = os.Getenv("ALIYUN_ACCESS_KEY_ID")
+		}
+
+		aliSecret := os.Getenv("ALIYUN_ACCESS_KEY_SECRET")
+		if aliSecret != "" {
+			env["ALIYUN_ACCESS_KEY_SECRET"] = os.Getenv("ALIYUN_ACCESS_KEY_SECRET")
 		}
 	}
 
