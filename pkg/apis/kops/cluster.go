@@ -276,6 +276,8 @@ type KopeioAuthenticationSpec struct {
 }
 
 type AwsAuthenticationSpec struct {
+	// Image is the AWS IAM Authenticator docker image to use
+	Image string `json:"image,omitempty"`
 }
 
 type AuthorizationSpec struct {
@@ -352,6 +354,12 @@ type KubeDNSConfig struct {
 	StubDomains map[string][]string `json:"stubDomains,omitempty"`
 	// UpstreamNameservers sets the upstream nameservers for queries not on the cluster domain
 	UpstreamNameservers []string `json:"upstreamNameservers,omitempty"`
+	// MemoryRequest specifies the memory requests of each dns container in the cluster. Default 70m.
+	MemoryRequest *resource.Quantity `json:"memoryRequest,omitempty"`
+	// CPURequest specifies the cpu requests of each dns container in the cluster. Default 100m.
+	CPURequest *resource.Quantity `json:"cpuRequest,omitempty"`
+	// MemoryLimit specifies the memory limit of each dns container in the cluster. Default 170m.
+	MemoryLimit *resource.Quantity `json:"memoryLimit,omitempty"`
 }
 
 // ExternalDNSConfig are options of the dns-controller

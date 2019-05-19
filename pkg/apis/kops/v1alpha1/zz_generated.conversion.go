@@ -1051,6 +1051,7 @@ func Convert_kops_AuthorizationSpec_To_v1alpha1_AuthorizationSpec(in *kops.Autho
 }
 
 func autoConvert_v1alpha1_AwsAuthenticationSpec_To_kops_AwsAuthenticationSpec(in *AwsAuthenticationSpec, out *kops.AwsAuthenticationSpec, s conversion.Scope) error {
+	out.Image = in.Image
 	return nil
 }
 
@@ -1060,6 +1061,7 @@ func Convert_v1alpha1_AwsAuthenticationSpec_To_kops_AwsAuthenticationSpec(in *Aw
 }
 
 func autoConvert_kops_AwsAuthenticationSpec_To_v1alpha1_AwsAuthenticationSpec(in *kops.AwsAuthenticationSpec, out *AwsAuthenticationSpec, s conversion.Scope) error {
+	out.Image = in.Image
 	return nil
 }
 
@@ -1127,6 +1129,7 @@ func autoConvert_v1alpha1_CanalNetworkingSpec_To_kops_CanalNetworkingSpec(in *Ca
 	out.DefaultEndpointToHostAction = in.DefaultEndpointToHostAction
 	out.DisableFlannelForwardRules = in.DisableFlannelForwardRules
 	out.LogSeveritySys = in.LogSeveritySys
+	out.MTU = in.MTU
 	out.PrometheusGoMetricsEnabled = in.PrometheusGoMetricsEnabled
 	out.PrometheusMetricsEnabled = in.PrometheusMetricsEnabled
 	out.PrometheusMetricsPort = in.PrometheusMetricsPort
@@ -1144,6 +1147,7 @@ func autoConvert_kops_CanalNetworkingSpec_To_v1alpha1_CanalNetworkingSpec(in *ko
 	out.DefaultEndpointToHostAction = in.DefaultEndpointToHostAction
 	out.DisableFlannelForwardRules = in.DisableFlannelForwardRules
 	out.LogSeveritySys = in.LogSeveritySys
+	out.MTU = in.MTU
 	out.PrometheusGoMetricsEnabled = in.PrometheusGoMetricsEnabled
 	out.PrometheusMetricsEnabled = in.PrometheusMetricsEnabled
 	out.PrometheusMetricsPort = in.PrometheusMetricsPort
@@ -2981,10 +2985,12 @@ func autoConvert_v1alpha1_KubeAPIServerConfig_To_kops_KubeAPIServerConfig(in *Ku
 	out.FeatureGates = in.FeatureGates
 	out.MaxRequestsInflight = in.MaxRequestsInflight
 	out.MaxMutatingRequestsInflight = in.MaxMutatingRequestsInflight
+	out.HTTP2MaxStreamsPerConnection = in.HTTP2MaxStreamsPerConnection
 	out.EtcdQuorumRead = in.EtcdQuorumRead
 	out.MinRequestTimeout = in.MinRequestTimeout
 	out.TargetRamMb = in.TargetRamMb
 	out.ServiceAccountKeyFile = in.ServiceAccountKeyFile
+	out.CPURequest = in.CPURequest
 	return nil
 }
 
@@ -3068,10 +3074,12 @@ func autoConvert_kops_KubeAPIServerConfig_To_v1alpha1_KubeAPIServerConfig(in *ko
 	out.FeatureGates = in.FeatureGates
 	out.MaxRequestsInflight = in.MaxRequestsInflight
 	out.MaxMutatingRequestsInflight = in.MaxMutatingRequestsInflight
+	out.HTTP2MaxStreamsPerConnection = in.HTTP2MaxStreamsPerConnection
 	out.EtcdQuorumRead = in.EtcdQuorumRead
 	out.MinRequestTimeout = in.MinRequestTimeout
 	out.TargetRamMb = in.TargetRamMb
 	out.ServiceAccountKeyFile = in.ServiceAccountKeyFile
+	out.CPURequest = in.CPURequest
 	return nil
 }
 
@@ -3118,6 +3126,7 @@ func autoConvert_v1alpha1_KubeControllerManagerConfig_To_kops_KubeControllerMana
 	out.FeatureGates = in.FeatureGates
 	out.TLSCipherSuites = in.TLSCipherSuites
 	out.TLSMinVersion = in.TLSMinVersion
+	out.MinResyncPeriod = in.MinResyncPeriod
 	return nil
 }
 
@@ -3164,6 +3173,7 @@ func autoConvert_kops_KubeControllerManagerConfig_To_v1alpha1_KubeControllerMana
 	out.FeatureGates = in.FeatureGates
 	out.TLSCipherSuites = in.TLSCipherSuites
 	out.TLSMinVersion = in.TLSMinVersion
+	out.MinResyncPeriod = in.MinResyncPeriod
 	return nil
 }
 
@@ -3182,6 +3192,9 @@ func autoConvert_v1alpha1_KubeDNSConfig_To_kops_KubeDNSConfig(in *KubeDNSConfig,
 	out.ServerIP = in.ServerIP
 	out.StubDomains = in.StubDomains
 	out.UpstreamNameservers = in.UpstreamNameservers
+	out.MemoryRequest = in.MemoryRequest
+	out.CPURequest = in.CPURequest
+	out.MemoryLimit = in.MemoryLimit
 	return nil
 }
 
@@ -3200,6 +3213,9 @@ func autoConvert_kops_KubeDNSConfig_To_v1alpha1_KubeDNSConfig(in *kops.KubeDNSCo
 	out.ServerIP = in.ServerIP
 	out.StubDomains = in.StubDomains
 	out.UpstreamNameservers = in.UpstreamNameservers
+	out.MemoryRequest = in.MemoryRequest
+	out.CPURequest = in.CPURequest
+	out.MemoryLimit = in.MemoryLimit
 	return nil
 }
 
@@ -3386,6 +3402,8 @@ func autoConvert_v1alpha1_KubeletConfigSpec_To_kops_KubeletConfigSpec(in *Kubele
 	out.CPUCFSQuota = in.CPUCFSQuota
 	out.CPUCFSQuotaPeriod = in.CPUCFSQuotaPeriod
 	out.CpuManagerPolicy = in.CpuManagerPolicy
+	out.RegistryPullQPS = in.RegistryPullQPS
+	out.RegistryBurst = in.RegistryBurst
 	return nil
 }
 
@@ -3468,6 +3486,8 @@ func autoConvert_kops_KubeletConfigSpec_To_v1alpha1_KubeletConfigSpec(in *kops.K
 	out.CPUCFSQuota = in.CPUCFSQuota
 	out.CPUCFSQuotaPeriod = in.CPUCFSQuotaPeriod
 	out.CpuManagerPolicy = in.CpuManagerPolicy
+	out.RegistryPullQPS = in.RegistryPullQPS
+	out.RegistryBurst = in.RegistryBurst
 	return nil
 }
 

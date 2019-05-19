@@ -56,7 +56,8 @@ spec:
       sslCertificate: arn:aws:acm:<region>:<accountId>:certificate/<uuid>
 ```
 
-It is possible to use the load balancer internally by setting the `useForInternalApi: true`.
+*Openstack only*
+As of Kops 1.12.0 it is possible to use the load balancer internally by setting the `useForInternalApi: true`.
 This will point both `masterPublicName` and `masterInternalName` to the load balancer. You can therefore set both of these to the same value in this configuration.
 
 ```yaml
@@ -99,7 +100,7 @@ etcdClusters:
 
 By default, the Volumes created for the etcd clusters are `gp2` and 20GB each. The volume size, type and Iops( for `io1`) can be configured via their parameters. Conversion between `gp2` and `io1` is not supported, nor are size changes.
 
-It is also possible to specify the requests for your etcd cluster members using the `cpuRequest` and `memoryRequest` parameters.
+As of Kops 1.12.0 it is also possible to specify the requests for your etcd cluster members using the `cpuRequest` and `memoryRequest` parameters.
 
 ```yaml
 etcdClusters:
@@ -170,7 +171,7 @@ spec:
     zone: us-east-1a
 ```
 
-In the case that you don't use NAT gateways or internet gateways, you can use the "External" flag for egress to force kops to ignore egress for the subnet. This can be useful when other tools are used to manage egress for the subnet such as virtual private gateways. Please note that your cluster may need to have access to the internet upon creation, so egress must be available upon initializing a cluster. This is intended for use when egress is managed external to kops, typically with an existing cluster.
+In the case that you don't use NAT gateways or internet gateways, Kops 1.12.0 introduced the "External" flag for egress to force kops to ignore egress for the subnet. This can be useful when other tools are used to manage egress for the subnet such as virtual private gateways. Please note that your cluster may need to have access to the internet upon creation, so egress must be available upon initializing a cluster. This is intended for use when egress is managed external to kops, typically with an existing cluster.
 
 ```
 spec:
@@ -355,7 +356,7 @@ spec:
 ```
 
 #### Setting kubelet CPU management policies
-To enable cpu management policies in kubernetes as per [cpu management doc](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#cpu-management-policies)
+Kops 1.12.0 added support for enabling cpu management policies in kubernetes as per [cpu management doc](https://kubernetes.io/docs/tasks/administer-cluster/cpu-management-policies/#cpu-management-policies)
 we have to set the flag `--cpu-manager-policy` to the appropriate value on all the kubelets. This must be specified in the `kubelet` spec in our cluster.yml.
 
 ```
@@ -445,6 +446,21 @@ spec:
 Will result in the flag `--feature-gates=Accelerators=true,AllowExtTrafficLocalEndpoints=false`
 
 NOTE: Feature gate `ExperimentalCriticalPodAnnotation` is enabled by default because some critical components like `kube-proxy` depend on its presence.
+
+Some feature gates also require the `featureGates` setting to be used on other components - e.g. `PodShareProcessNamespace` requires
+the feature gate to be enabled on the api server:
+
+```yaml
+spec:
+  kubelet:
+    featureGates:
+      PodShareProcessNamespace: "true"
+  kubeAPIServer:
+    featureGates:
+      PodShareProcessNamespace: "true"
+```
+
+For more information, see the [feature gate documentation](https://kubernetes.io/docs/reference/command-line-tools-reference/feature-gates/)
 
 ####  Compute Resources Reservation
 

@@ -21,8 +21,9 @@ import (
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/openstacktasks"
+
 	//TODO: Replace with klog
-	"github.com/golang/glog"
+	"k8s.io/klog"
 	"k8s.io/kops/pkg/dns"
 )
 
@@ -293,6 +294,26 @@ func (b *FirewallModelBuilder) addKubeletRules(c *fi.ModelBuilderContext, sgMap 
 	return nil
 }
 
+// addNodeExporterRules - Allow 9100 TCP port from nodesg
+func (b *FirewallModelBuilder) addNodeExporterRules(c *fi.ModelBuilderContext, sgMap map[string]*openstacktasks.SecurityGroup) error {
+	masterName := b.SecurityGroupName(kops.InstanceGroupRoleMaster)
+	nodeName := b.SecurityGroupName(kops.InstanceGroupRoleNode)
+	masterSG := sgMap[masterName]
+	nodeSG := sgMap[nodeName]
+	nodeExporterIngress := &openstacktasks.SecurityGroupRule{
+		Lifecycle:    b.Lifecycle,
+		Direction:    s(string(rules.DirIngress)),
+		Protocol:     s(IPProtocolTCP),
+		EtherType:    s(IPV4),
+		PortRangeMin: i(9100),
+		PortRangeMax: i(9100),
+	}
+	// allow 9100 port from nodeSG
+	addDirectionalGroupRule(c, masterSG, nodeSG, nodeExporterIngress)
+	addDirectionalGroupRule(c, nodeSG, nodeSG, nodeExporterIngress)
+	return nil
+}
+
 // addDNSRules - Add DNS rules for internal DNS queries
 func (b *FirewallModelBuilder) addDNSRules(c *fi.ModelBuilderContext, sgMap map[string]*openstacktasks.SecurityGroup) error {
 
@@ -346,7 +367,7 @@ func (b *FirewallModelBuilder) addCNIRules(c *fi.ModelBuilderContext, sgMap map[
 			case "vxlan":
 				udpPorts = append(udpPorts, 8472)
 			default:
-				glog.Warningf("unknown flannel networking backend %q", b.Cluster.Spec.Networking.Flannel.Backend)
+				klog.Warningf("unknown flannel networking backend %q", b.Cluster.Spec.Networking.Flannel.Backend)
 			}
 		}
 
@@ -470,6 +491,8 @@ func (b *FirewallModelBuilder) Build(c *fi.ModelBuilderContext) error {
 	b.addDNSRules(c, sgMap)
 	//Add Kubelet Rules
 	b.addKubeletRules(c, sgMap)
+	//Add Node exporter Rules
+	b.addNodeExporterRules(c, sgMap)
 	// Protokube Rules
 	b.addProtokubeRules(c, sgMap)
 	//Allow necessary local traffic

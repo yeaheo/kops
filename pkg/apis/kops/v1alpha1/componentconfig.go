@@ -189,6 +189,10 @@ type KubeletConfigSpec struct {
 	CPUCFSQuotaPeriod *metav1.Duration `json:"cpuCFSQuotaPeriod,omitempty" flag:"cpu-cfs-quota-period"`
 	// CpuManagerPolicy allows for changing the default policy of None to static
 	CpuManagerPolicy string `json:"cpuManagerPolicy,omitempty" flag:"cpu-manager-policy"`
+	// RegistryPullQPS if > 0, limit registry pull QPS to this value.  If 0, unlimited. (default 5)
+	RegistryPullQPS *int32 `json:"registryPullQPS,omitempty" flag:"registry-qps"`
+	//RegistryBurst Maximum size of a bursty pulls, temporarily allows pulls to burst to this number, while still not exceeding registry-qps. Only used if --registry-qps > 0 (default 10)
+	RegistryBurst *int32 `json:"registryBurst,omitempty" flag:"registry-burst"`
 }
 
 // KubeProxyConfig defines the configuration for a proxy
@@ -399,6 +403,9 @@ type KubeAPIServerConfig struct {
 	// MaxMutatingRequestsInflight The maximum number of mutating requests in flight at a given time. Defaults to 200
 	MaxMutatingRequestsInflight int32 `json:"maxMutatingRequestsInflight,omitempty" flag:"max-mutating-requests-inflight" flag-empty:"0"`
 
+	// HTTP2MaxStreamsPerConnection sets the limit that the server gives to clients for the maximum number of streams in an HTTP/2 connection. Zero means to use golang's default.
+	HTTP2MaxStreamsPerConnection *int32 `json:"http2MaxStreamsPerConnection,omitempty" flag:"http2-max-streams-per-connection"`
+
 	// EtcdQuorumRead configures the etcd-quorum-read flag, which forces consistent reads from etcd
 	EtcdQuorumRead *bool `json:"etcdQuorumRead,omitempty" flag:"etcd-quorum-read"`
 
@@ -413,6 +420,9 @@ type KubeAPIServerConfig struct {
 	// The specified file can contain multiple keys, and the flag can be specified multiple times with different files.
 	// If unspecified, --tls-private-key-file is used.
 	ServiceAccountKeyFile []string `json:"serviceAccountKeyFile,omitempty" flag:"service-account-key-file"`
+
+	// CPURequest, cpu request compute resource for api server. Defaults to "150m"
+	CPURequest string `json:"cpuRequest,omitempty"`
 }
 
 // KubeControllerManagerConfig is the configuration for the controller
@@ -489,6 +499,9 @@ type KubeControllerManagerConfig struct {
 	TLSCipherSuites []string `json:"tlsCipherSuites,omitempty" flag:"tls-cipher-suites"`
 	// TLSMinVersion indicates the minimum TLS version allowed
 	TLSMinVersion string `json:"tlsMinVersion,omitempty" flag:"tls-min-version"`
+	// MinResyncPeriod indicates the resync period in reflectors.
+	// The resync period will be random between MinResyncPeriod and 2*MinResyncPeriod. (default 12h0m0s)
+	MinResyncPeriod string `json:"minResyncPeriod,omitempty" flag:"min-resync-period"`
 }
 
 // CloudControllerManagerConfig is the configuration of the cloud controller

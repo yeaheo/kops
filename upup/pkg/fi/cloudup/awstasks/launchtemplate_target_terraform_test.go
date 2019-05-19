@@ -34,11 +34,13 @@ func TestLaunchTemplateTerraformRender(t *testing.T) {
 				ID:                     fi.String("test-11"),
 				InstanceMonitoring:     fi.Bool(true),
 				InstanceType:           fi.String("t2.medium"),
+				SpotPrice:              "0.1",
 				RootVolumeOptimization: fi.Bool(true),
 				RootVolumeIops:         fi.Int64(100),
 				RootVolumeSize:         fi.Int64(64),
 				SSHKey: &SSHKey{
-					Name: fi.String("mykey"),
+					Name:      fi.String("newkey"),
+					PublicKey: fi.WrapResource(fi.NewStringResource("newkey")),
 				},
 				SecurityGroups: []*SecurityGroup{
 					{Name: fi.String("nodes-1"), ID: fi.String("1111")},
@@ -64,17 +66,24 @@ resource "aws_launch_template" "test" {
   }
 
   instance_type = "t2.medium"
-  key_name      = "${aws_key_pair.mykey.id}"
+  key_name      = "${aws_key_pair.newkey.id}"
+
+  instance_market_options = {
+    market_type = "spot"
+
+    spot_options = {
+      max_price = "0.1"
+    }
+  }
 
   network_interfaces = {
     associate_public_ip_address = true
+    security_groups             = ["${aws_security_group.nodes-1.id}", "${aws_security_group.nodes-2.id}"]
   }
 
   placement = {
     tenancy = "dedicated"
   }
-
-  vpc_security_group_ids = ["${aws_security_group.nodes-1.id}", "${aws_security_group.nodes-2.id}"]
 }
 
 terraform = {
@@ -142,17 +151,16 @@ resource "aws_launch_template" "test" {
   }
 
   instance_type = "t2.medium"
-  key_name      = "${aws_key_pair.mykey.id}"
+  key_name      = "mykey"
 
   network_interfaces = {
     associate_public_ip_address = true
+    security_groups             = ["${aws_security_group.nodes-1.id}", "${aws_security_group.nodes-2.id}"]
   }
 
   placement = {
     tenancy = "dedicated"
   }
-
-  vpc_security_group_ids = ["${aws_security_group.nodes-1.id}", "${aws_security_group.nodes-2.id}"]
 }
 
 terraform = {

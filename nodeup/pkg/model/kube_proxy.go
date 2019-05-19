@@ -27,10 +27,10 @@ import (
 	"k8s.io/kops/upup/pkg/fi/nodeup/nodetasks"
 	"k8s.io/kops/util/pkg/exec"
 
-	"github.com/golang/glog"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog"
 )
 
 // KubeProxyBuilder installs kube-proxy
@@ -45,7 +45,7 @@ var _ fi.ModelBuilder = &KubeAPIServerBuilder{}
 func (b *KubeProxyBuilder) Build(c *fi.ModelBuilderContext) error {
 
 	if b.Cluster.Spec.KubeProxy.Enabled != nil && *b.Cluster.Spec.KubeProxy.Enabled == false {
-		glog.V(2).Infof("Kube-proxy is disabled, will not create configuration for it.")
+		klog.V(2).Infof("Kube-proxy is disabled, will not create configuration for it.")
 		return nil
 	}
 
@@ -53,7 +53,7 @@ func (b *KubeProxyBuilder) Build(c *fi.ModelBuilderContext) error {
 		// If this is a master that is not isolated, run it as a normal node also (start kube-proxy etc)
 		// This lets e.g. daemonset pods communicate with other pods in the system
 		if fi.BoolValue(b.Cluster.Spec.IsolateMasters) {
-			glog.V(2).Infof("Running on Master with IsolateMaster=true; skipping kube-proxy installation")
+			klog.V(2).Infof("Running on Master with IsolateMaster=true; skipping kube-proxy installation")
 			return nil
 		}
 	}
@@ -177,10 +177,6 @@ func (b *KubeProxyBuilder) buildPod() (*v1.Pod, error) {
 	container := &v1.Container{
 		Name:  "kube-proxy",
 		Image: image,
-		Command: exec.WithTee(
-			"/usr/local/bin/kube-proxy",
-			sortedStrings(flags),
-			"/var/log/kube-proxy.log"),
 		Resources: v1.ResourceRequirements{
 			Requests: resourceRequests,
 			Limits:   resourceLimits,
@@ -205,9 +201,26 @@ func (b *KubeProxyBuilder) buildPod() (*v1.Pod, error) {
 		},
 	}
 
+	// Log both to docker and to the logfile
+	addHostPathMapping(pod, container, "logfile", "/var/log/kube-proxy.log").ReadOnly = false
+	if b.IsKubernetesGTE("1.15") {
+		// From k8s 1.15, we use lighter containers that don't include shells
+		// But they have richer logging support via klog
+		container.Command = []string{"/usr/local/bin/kube-proxy"}
+		container.Args = append(
+			sortedStrings(flags),
+			"--logtostderr=false", //https://github.com/kubernetes/klog/issues/60
+			"--alsologtostderr",
+			"--log-file=/var/log/kube-proxy.log")
+	} else {
+		container.Command = exec.WithTee(
+			"/usr/local/bin/kube-proxy",
+			sortedStrings(flags),
+			"/var/log/kube-proxy.log")
+	}
+
 	{
 		addHostPathMapping(pod, container, "kubeconfig", "/var/lib/kube-proxy/kubeconfig")
-		addHostPathMapping(pod, container, "logfile", "/var/log/kube-proxy.log").ReadOnly = false
 		// @note: mapping the host modules directory to fix the missing ipvs kernel module
 		addHostPathMapping(pod, container, "modules", "/lib/modules")
 
@@ -228,7 +241,7 @@ func (b *KubeProxyBuilder) buildPod() (*v1.Pod, error) {
 		vol := pod.Spec.Volumes[len(pod.Spec.Volumes)-1]
 		if vol.Name != "iptableslock" {
 			// Sanity check
-			glog.Fatalf("expected volume to be last volume added")
+			klog.Fatalf("expected volume to be last volume added")
 		}
 		hostPathType := v1.HostPathFileOrCreate
 		vol.HostPath.Type = &hostPathType

@@ -387,19 +387,20 @@ func (b *KubeAPIServerBuilder) buildPod() (*v1.Pod, error) {
 		probeAction.Scheme = v1.URISchemeHTTPS
 	}
 
+	requestCPU := resource.MustParse("150m")
+	if b.Cluster.Spec.KubeAPIServer.CPURequest != "" {
+		requestCPU = resource.MustParse(b.Cluster.Spec.KubeAPIServer.CPURequest)
+	}
+
 	container := &v1.Container{
 		Name:  "kube-apiserver",
 		Image: b.Cluster.Spec.KubeAPIServer.Image,
-		Command: exec.WithTee(
-			"/usr/local/bin/kube-apiserver",
-			sortedStrings(flags),
-			"/var/log/kube-apiserver.log"),
-		Env: getProxyEnvVars(b.Cluster.Spec.EgressProxy),
+		Env:   getProxyEnvVars(b.Cluster.Spec.EgressProxy),
 		LivenessProbe: &v1.Probe{
 			Handler: v1.Handler{
 				HTTPGet: probeAction,
 			},
-			InitialDelaySeconds: 15,
+			InitialDelaySeconds: 45,
 			TimeoutSeconds:      15,
 		},
 		Ports: []v1.ContainerPort{
@@ -416,17 +417,33 @@ func (b *KubeAPIServerBuilder) buildPod() (*v1.Pod, error) {
 		},
 		Resources: v1.ResourceRequirements{
 			Requests: v1.ResourceList{
-				v1.ResourceCPU: resource.MustParse("150m"),
+				v1.ResourceCPU: requestCPU,
 			},
 		},
+	}
+
+	// Log both to docker and to the logfile
+	addHostPathMapping(pod, container, "logfile", "/var/log/kube-apiserver.log").ReadOnly = false
+	if b.IsKubernetesGTE("1.15") {
+		// From k8s 1.15, we use lighter containers that don't include shells
+		// But they have richer logging support via klog
+		container.Command = []string{"/usr/local/bin/kube-apiserver"}
+		container.Args = append(
+			sortedStrings(flags),
+			"--logtostderr=false", //https://github.com/kubernetes/klog/issues/60
+			"--alsologtostderr",
+			"--log-file=/var/log/kube-apiserver.log")
+	} else {
+		container.Command = exec.WithTee(
+			"/usr/local/bin/kube-apiserver",
+			sortedStrings(flags),
+			"/var/log/kube-apiserver.log")
 	}
 
 	for _, path := range b.SSLHostPaths() {
 		name := strings.Replace(path, "/", "", -1)
 		addHostPathMapping(pod, container, name, path)
 	}
-
-	addHostPathMapping(pod, container, "logfile", "/var/log/kube-apiserver.log").ReadOnly = false
 
 	if b.UseEtcdManager() {
 		volumeType := v1.HostPathDirectoryOrCreate
