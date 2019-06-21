@@ -1663,6 +1663,11 @@ func (in *KubeAPIServerConfig) DeepCopyInto(out *KubeAPIServerConfig) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
+	if in.AppendAdmissionPlugins != nil {
+		in, out := &in.AppendAdmissionPlugins, &out.AppendAdmissionPlugins
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	if in.EnableAdmissionPlugins != nil {
 		in, out := &in.EnableAdmissionPlugins, &out.EnableAdmissionPlugins
 		*out = make([]string, len(*in))
@@ -2019,6 +2024,16 @@ func (in *KubeControllerManagerConfig) DeepCopyInto(out *KubeControllerManagerCo
 		in, out := &in.TLSCipherSuites, &out.TLSCipherSuites
 		*out = make([]string, len(*in))
 		copy(*out, *in)
+	}
+	if in.KubeAPIQPS != nil {
+		in, out := &in.KubeAPIQPS, &out.KubeAPIQPS
+		*out = new(float32)
+		**out = **in
+	}
+	if in.KubeAPIBurst != nil {
+		in, out := &in.KubeAPIBurst, &out.KubeAPIBurst
+		*out = new(int32)
+		**out = **in
 	}
 	return
 }

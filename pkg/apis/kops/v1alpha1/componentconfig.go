@@ -265,10 +265,14 @@ type KubeAPIServerConfig struct {
 	EnableAggregatorRouting *bool `json:"enableAggregatorRouting,omitempty" flag:"enable-aggregator-routing"`
 	// Deprecated: AdmissionControl is a list of admission controllers to use
 	AdmissionControl []string `json:"admissionControl,omitempty" flag:"admission-control"`
+	// AppendAdmissionPlugins appends list of enabled admission plugins
+	AppendAdmissionPlugins []string `json:"appendAdmissionPlugins,omitempty" flag:"append-admission-plugins"`
 	// EnableAdmissionPlugins is a list of enabled admission plugins
 	EnableAdmissionPlugins []string `json:"enableAdmissionPlugins,omitempty" flag:"enable-admission-plugins"`
 	// DisableAdmissionPlugins is a list of disabled admission plugins
 	DisableAdmissionPlugins []string `json:"disableAdmissionPlugins,omitempty" flag:"disable-admission-plugins"`
+	// AdmissionControlConfigFile is the location of the admission-control-config-file
+	AdmissionControlConfigFile string `json:"admissionControlConfigFile,omitempty" flag:"admission-control-config-file"`
 	// ServiceClusterIPRange is the service address range
 	ServiceClusterIPRange string `json:"serviceClusterIPRange,omitempty" flag:"service-cluster-ip-range"`
 	// Passed as --service-node-port-range to kube-apiserver. Expects 'startPort-endPort' format e.g. 30000-33000
@@ -502,6 +506,10 @@ type KubeControllerManagerConfig struct {
 	// MinResyncPeriod indicates the resync period in reflectors.
 	// The resync period will be random between MinResyncPeriod and 2*MinResyncPeriod. (default 12h0m0s)
 	MinResyncPeriod string `json:"minResyncPeriod,omitempty" flag:"min-resync-period"`
+	// KubeAPIQPS QPS to use while talking with kubernetes apiserver. (default 20)
+	KubeAPIQPS *float32 `json:"kubeAPIQPS,omitempty" flag:"kube-api-qps"`
+	// KubeAPIBurst Burst to use while talking with kubernetes apiserver. (default 30)
+	KubeAPIBurst *int32 `json:"kubeAPIBurst,omitempty" flag:"kube-api-burst"`
 }
 
 // CloudControllerManagerConfig is the configuration of the cloud controller

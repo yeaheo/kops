@@ -580,7 +580,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 
 	if featureflag.Spotinst.Enabled() {
 		key := "spotinst-kubernetes-cluster-controller.addons.k8s.io"
-		version := "1.0.18"
+		version := "1.0.39"
 
 		{
 			id := "v1.8.0"
@@ -913,7 +913,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 			"k8s-1.6":     "2.4.2-kops.2",
 			"k8s-1.8":     "2.6.7-kops.3",
 			"k8s-1.9":     "3.2.3-kops.1",
-			"k8s-1.12":    "3.7.2",
+			"k8s-1.12":    "3.7.3",
 		}
 		{
 			id := "pre-k8s-1.6"
@@ -1061,7 +1061,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 
 	if b.cluster.Spec.Networking.AmazonVPC != nil {
 		key := "networking.amazon-vpc-routed-eni"
-		version := "1.3.3-kops.1"
+		version := "1.5.0-kops.1"
 
 		{
 			id := "k8s-1.7"
@@ -1198,7 +1198,7 @@ func (b *BootstrapChannelBuilder) buildManifest() (*channelsapi.Addons, map[stri
 		}
 		if b.cluster.Spec.Authentication.Aws != nil {
 			key := "authentication.aws"
-			version := "0.3.0-kops.1"
+			version := "0.4.0-kops.1"
 
 			{
 				location := key + "/k8s-1.10.yaml"

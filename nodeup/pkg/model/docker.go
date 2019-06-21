@@ -617,6 +617,19 @@ var dockerVersions = []dockerVersion{
 		Dependencies:  []string{"bridge-utils", "libapparmor1", "libltdl7", "perl"},
 	},
 
+	// 18.06.3 - Debian Buster
+	{
+
+		DockerVersion: "18.06.3",
+		Name:          "docker-ce",
+		Distros:       []distros.Distribution{distros.DistributionDebian10},
+		Architectures: []Architecture{ArchitectureAmd64},
+		Version:       "18.06.3~ce~3-0~debian",
+		Source:        "https://download.docker.com/linux/debian/dists/buster/pool/stable/amd64/docker-ce_18.06.3~ce~3-0~debian_amd64.deb",
+		Hash:          "05c9b098437bcf1b489c2a3a9764c3b779af7bc4",
+		Dependencies:  []string{"bridge-utils", "libapparmor1", "libltdl7", "perl"},
+	},
+
 	// 18.06.2 - Jessie
 	{
 		DockerVersion: "18.06.2",
@@ -807,6 +820,13 @@ func (b *DockerBuilder) Build(c *fi.ModelBuilderContext) error {
 	switch b.Distribution {
 	case distros.DistributionCoreOS:
 		klog.Infof("Detected CoreOS; won't install Docker")
+		if err := b.buildContainerOSConfigurationDropIn(c); err != nil {
+			return err
+		}
+		return nil
+
+	case distros.DistributionFlatcar:
+		klog.Infof("Detected Flatcar; won't install Docker")
 		if err := b.buildContainerOSConfigurationDropIn(c); err != nil {
 			return err
 		}

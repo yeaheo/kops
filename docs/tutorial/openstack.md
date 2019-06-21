@@ -2,6 +2,8 @@
 
 **WARNING**: OpenStack support on kops is currently **alpha** meaning it is in the early stages of development and subject to change, please use with caution.
 
+The tutorial shown on this page works with `kops` v1.12 and above.
+
 ## Source your openstack RC
 The Cloud Config used by the kubernetes API server and kubelet will be constructed from environment variables in the openstack RC file. The openrc.sh file is usually located under `API access`.
 
@@ -9,7 +11,7 @@ The Cloud Config used by the kubernetes API server and kubelet will be construct
 source openstack.rc
 ```
 
-If you are authenticating by username `OS_DOMAIN_NAME` or `OS_DOMAIN_ID` must manually be set.
+If you are authenticating by username,  `OS_DOMAIN_NAME` or `OS_DOMAIN_ID` must manually be set.
 ```bash
 export OS_DOMAIN_NAME=<USER_DOMAIN_NAME>
 ```
@@ -22,7 +24,7 @@ It is important to set the following environment variables:
 export KOPS_STATE_STORE=swift://<bucket-name> # where <bucket-name> is the name of the Swift container to use for kops state
 
 # this is required since OpenStack support is currently in alpha so it is feature gated
-export KOPS_FEATURE_FLAGS="AlphaAllowOpenStack"
+export KOPS_FEATURE_FLAGS="AlphaAllowOpenstack"
 ```
 
 If your OpenStack does not have Swift you can use any other VFS store, such as S3.

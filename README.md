@@ -89,7 +89,7 @@ Kubernetes version.
 | kops version  | k8s 1.8.x | k8s 1.9.x | k8s 1.10.x | k8s 1.11.x | k8s 1.12.x | k8s 1.13.x | k8s 1.14.x |
 |---------------|-----------|-----------|------------|------------|------------|------------|------------|
 | 1.14.x - Alpha| ✔         | ✔         | ✔          | ✔          | ✔          | ✔          | ✔          |
-| 1.13.x - Alpha| ✔         | ✔         | ✔          | ✔          | ✔          | ✔          | ❌         |
+| 1.13.x - Beta | ✔         | ✔         | ✔          | ✔          | ✔          | ✔          | ❌         |
 | 1.12.x        | ✔         | ✔         | ✔          | ✔          | ✔          | ❌         | ❌         |
 | 1.11.x        | ✔         | ✔         | ✔          | ✔          | ❌         | ❌         | ❌         |
 | 1.10.x        | ✔         | ✔         | ✔          | ❌         | ❌         | ❌         | ❌         |
@@ -182,7 +182,7 @@ __Pull Requests__
   - Also verify that the new feature seems sane, follows best architectural patterns, and includes tests.
 
 This repository uses the Kubernetes bots.  See a full list of the commands [here](
-https://github.com/kubernetes/test-infra/blob/master/commands.md).
+https://go.k8s.io/bot-commands).
 
 
 ## Office Hours

@@ -21,7 +21,7 @@ GCS_URL=$(GCS_LOCATION:gs://%=https://storage.googleapis.com/%)
 LATEST_FILE?=latest-ci.txt
 GOPATH_1ST:=$(shell go env | grep GOPATH | cut -f 2 -d \")
 UNIQUE:=$(shell date +%s)
-GOVERSION=1.12.1
+GOVERSION=1.12.5
 BUILD=$(GOPATH_1ST)/src/k8s.io/kops/.build
 LOCAL=$(BUILD)/local
 BINDATA_TARGETS=upup/models/bindata.go
@@ -39,9 +39,6 @@ BAZELIMAGES=$(BAZELDIST)/images
 BAZELUPLOAD=$(BAZELBUILD)/upload
 UID:=$(shell id -u)
 GID:=$(shell id -g)
-TESTABLE_PACKAGES:=$(shell egrep -v "k8s.io/kops/vendor" hack/.packages)
-# We need to ignore clientsets because of kubernetes/kubernetes#60584
-GOVETABLE_PACKAGES:=$(shell egrep -v "k8s.io/kops/vendor|clientset/fake" hack/.packages)
 BAZEL_OPTIONS?=
 API_OPTIONS?=
 GCFLAGS?=
@@ -228,6 +225,7 @@ codegen: kops-gobindata
 	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/cloudup/dotasks
 	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/cloudup/openstacktasks
 	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/cloudup/alitasks
+	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/cloudup/spotinsttasks
 	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/assettasks
 	PATH="${GOPATH_1ST}/bin:${PATH}" go generate k8s.io/kops/upup/pkg/fi/fitasks
 
@@ -241,7 +239,7 @@ hooks: # Install Git hooks
 
 .PHONY: test
 test: ${BINDATA_TARGETS}  # Run tests locally
-	go test -v ${TESTABLE_PACKAGES}
+	go test -v ./...
 
 .PHONY: ${DIST}/linux/amd64/nodeup
 ${DIST}/linux/amd64/nodeup: ${BINDATA_TARGETS}
@@ -516,7 +514,7 @@ verify-goimports:
 
 .PHONY: govet
 govet: ${BINDATA_TARGETS}
-	go vet ${GOVETABLE_PACKAGES}
+	go vet ./...
 
 # --------------------------------------------------
 # Continuous integration targets
