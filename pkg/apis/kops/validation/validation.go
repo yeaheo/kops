@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -96,7 +96,7 @@ func validateClusterSpec(spec *kops.ClusterSpec, fieldPath *field.Path) field.Er
 	}
 
 	if spec.Networking != nil {
-		allErrs = append(allErrs, validateNetworking(spec.Networking, fieldPath.Child("networking"))...)
+		allErrs = append(allErrs, validateNetworking(spec, spec.Networking, fieldPath.Child("networking"))...)
 		if spec.Networking.Calico != nil {
 			allErrs = append(allErrs, validateNetworkingCalico(spec.Networking.Calico, spec.EtcdClusters[0], fieldPath.Child("networking").Child("Calico"))...)
 		}
@@ -266,15 +266,27 @@ func validateKubeAPIServer(v *kops.KubeAPIServerConfig, fldPath *field.Path) fie
 		}
 	}
 
+	if v.AuthorizationMode != nil && strings.Contains(*v.AuthorizationMode, "Webhook") {
+		if v.AuthorizationWebhookConfigFile == nil {
+			flds := [2]*string{v.AuthorizationMode, v.AuthorizationWebhookConfigFile}
+			allErrs = append(allErrs, field.Invalid(fldPath, flds, "Authorization mode Webhook requires AuthorizationWebhookConfigFile to be specified"))
+		}
+	}
+
 	return allErrs
 }
 
-func validateNetworking(v *kops.NetworkingSpec, fldPath *field.Path) field.ErrorList {
+func validateNetworking(c *kops.ClusterSpec, v *kops.NetworkingSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	if v.Flannel != nil {
 		allErrs = append(allErrs, validateNetworkingFlannel(v.Flannel, fldPath.Child("Flannel"))...)
 	}
+
+	if v.GCE != nil {
+		allErrs = append(allErrs, validateNetworkingGCE(c, v.GCE, fldPath.Child("gce"))...)
+	}
+
 	return allErrs
 }
 
@@ -288,6 +300,16 @@ func validateNetworkingFlannel(v *kops.FlannelNetworkingSpec, fldPath *field.Pat
 		// OK
 	default:
 		allErrs = append(allErrs, field.NotSupported(fldPath.Child("Backend"), v.Backend, []string{"udp", "vxlan"}))
+	}
+
+	return allErrs
+}
+
+func validateNetworkingGCE(c *kops.ClusterSpec, v *kops.GCENetworkingSpec, fldPath *field.Path) field.ErrorList {
+	allErrs := field.ErrorList{}
+
+	if c.CloudProvider != "gce" {
+		allErrs = append(allErrs, field.Invalid(fldPath, "gce", "gce networking is supported only when on GCP"))
 	}
 
 	return allErrs
@@ -377,6 +399,13 @@ func ValidateEtcdVersionForCalicoV3(e *kops.EtcdClusterSpec, majorVersion string
 
 func validateNetworkingCalico(v *kops.CalicoNetworkingSpec, e *kops.EtcdClusterSpec, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
+	if v.TyphaReplicas >= 0 {
+
+	} else {
+		allErrs = append(allErrs,
+			field.Invalid(fldPath.Child("TyphaReplicas"), v.TyphaReplicas,
+				fmt.Sprintf("Unable to set number of Typha replicas to less than 0, you've specified %d", v.TyphaReplicas)))
+	}
 	switch v.MajorVersion {
 	case "":
 		// OK:

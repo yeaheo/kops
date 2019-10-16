@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"k8s.io/klog"
 	"k8s.io/kops/nodeup/pkg/distros"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/apis/kops/util"
@@ -33,8 +34,10 @@ import (
 	"k8s.io/kops/util/pkg/vfs"
 	"k8s.io/kubernetes/pkg/util/mount"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/blang/semver"
-	"k8s.io/klog"
 )
 
 // NodeupModelContext is the context supplied the nodeup tasks
@@ -158,7 +161,7 @@ func (c *NodeupModelContext) FileAssetsDefaultPath() string {
 	return filepath.Join(c.PathSrvKubernetes(), "assets")
 }
 
-// PathSrvSshproxy returns the path for the SSL proxy
+// PathSrvSshproxy returns the path for the SSH proxy
 func (c *NodeupModelContext) PathSrvSshproxy() string {
 	switch c.Distribution {
 	case distros.DistributionContainerOS:
@@ -389,19 +392,19 @@ func (c *NodeupModelContext) UseSecureKubelet() bool {
 	group := &c.InstanceGroup.Spec
 
 	// @check on the InstanceGroup itself
-	if group.Kubelet != nil && group.Kubelet.AnonymousAuth != nil && *group.Kubelet.AnonymousAuth == false {
+	if group.Kubelet != nil && group.Kubelet.AnonymousAuth != nil && !*group.Kubelet.AnonymousAuth {
 		return true
 	}
 
 	// @check if we have anything specific to master kubelet
 	if c.IsMaster {
-		if cluster.MasterKubelet != nil && cluster.MasterKubelet.AnonymousAuth != nil && *cluster.MasterKubelet.AnonymousAuth == false {
+		if cluster.MasterKubelet != nil && cluster.MasterKubelet.AnonymousAuth != nil && !*cluster.MasterKubelet.AnonymousAuth {
 			return true
 		}
 	}
 
 	// @check the default settings for master and kubelet
-	if cluster.Kubelet != nil && cluster.Kubelet.AnonymousAuth != nil && *cluster.Kubelet.AnonymousAuth == false {
+	if cluster.Kubelet != nil && cluster.Kubelet.AnonymousAuth != nil && !*cluster.Kubelet.AnonymousAuth {
 		return true
 	}
 
@@ -534,25 +537,43 @@ func EvaluateHostnameOverride(hostnameOverride string) (string, error) {
 		return hostnameOverride, nil
 	}
 
-	// We recognize @aws as meaning "the local-hostname from the aws metadata service"
-	vBytes, err := vfs.Context.ReadFile("metadata://aws/meta-data/local-hostname")
+	// We recognize @aws as meaning "the private DNS name from AWS", to generate this we need to get a few pieces of information
+	azBytes, err := vfs.Context.ReadFile("metadata://aws/meta-data/placement/availability-zone")
 	if err != nil {
-		return "", fmt.Errorf("error reading local hostname from AWS metadata: %v", err)
+		return "", fmt.Errorf("error reading availability zone from AWS metadata: %v", err)
 	}
 
-	// The local-hostname gets it's hostname from the AWS DHCP Option Set, which
-	// may provide multiple hostnames separated by spaces. For now just choose
-	// the first one as the hostname.
-	domains := strings.Fields(string(vBytes))
-	if len(domains) == 0 {
-		klog.Warningf("Local hostname from AWS metadata service was empty")
-		return "", nil
+	instanceIDBytes, err := vfs.Context.ReadFile("metadata://aws/meta-data/instance-id")
+	if err != nil {
+		return "", fmt.Errorf("error reading instance-id from AWS metadata: %v", err)
 	}
-	domain := domains[0]
+	instanceID := string(instanceIDBytes)
 
-	klog.Infof("Using hostname from AWS metadata service: %s", domain)
+	config := aws.NewConfig()
+	config = config.WithCredentialsChainVerboseErrors(true)
 
-	return domain, nil
+	s, err := session.NewSession(config)
+	if err != nil {
+		return "", fmt.Errorf("error starting new AWS session: %v", err)
+	}
+
+	svc := ec2.New(s, config.WithRegion(string(azBytes[:len(azBytes)-1])))
+
+	result, err := svc.DescribeInstances(&ec2.DescribeInstancesInput{
+		InstanceIds: []*string{&instanceID},
+	})
+	if err != nil {
+		return "", fmt.Errorf("error describing instances: %v", err)
+	}
+
+	if len(result.Reservations) != 1 {
+		return "", fmt.Errorf("Too many reservations returned for the single instance-id")
+	}
+
+	if len(result.Reservations[0].Instances) != 1 {
+		return "", fmt.Errorf("Too many instances returned for the single instance-id")
+	}
+	return *(result.Reservations[0].Instances[0].PrivateDnsName), nil
 }
 
 // FindCert is a helper method to retrieving a certificate from the store

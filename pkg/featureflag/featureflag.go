@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -82,6 +82,8 @@ var (
 	VPCSkipEnableDNSSupport = New("VPCSkipEnableDNSSupport", Bool(false))
 	// VSphereCloudProvider enables the vsphere cloud provider
 	VSphereCloudProvider = New("VSphereCloudProvider", Bool(false))
+	// SkipEtcdVersionCheck will bypass the check that etcd-manager is using a supported etcd version
+	SkipEtcdVersionCheck = New("SkipEtcdVersionCheck", Bool(false))
 )
 
 // FeatureFlag defines a feature flag

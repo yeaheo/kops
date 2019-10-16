@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -198,7 +198,7 @@ func (r *ClusterVFS) find(clusterName string) (*api.Cluster, error) {
 		c.ObjectMeta.Name = clusterName
 	}
 	if c.ObjectMeta.Name != clusterName {
-		klog.Warningf("Name of cluster does not match: %q vs %q", c.ObjectMeta.Name, clusterName)
+		klog.Warningf("Name of cluster does not match: actual name was %q, but cluster name was %q (using registry path %v).", c.ObjectMeta.Name, clusterName, registry.PathCluster)
 	}
 
 	// TODO: Split this out into real version updates / schema changes

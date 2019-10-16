@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -63,7 +63,7 @@ func (b *NetworkModelBuilder) Build(c *fi.ModelBuilderContext) error {
 			DNSServers: make([]*string, 0),
 			Lifecycle:  b.Lifecycle,
 		}
-		if b.Cluster.Spec.CloudConfig.Openstack.Router.DNSServers != nil {
+		if b.Cluster.Spec.CloudConfig.Openstack.Router != nil && b.Cluster.Spec.CloudConfig.Openstack.Router.DNSServers != nil {
 			dnsSplitted := strings.Split(fi.StringValue(b.Cluster.Spec.CloudConfig.Openstack.Router.DNSServers), ",")
 			dnsNameSrv := make([]*string, len(dnsSplitted))
 			for i, ns := range dnsSplitted {

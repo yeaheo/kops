@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -42,6 +42,8 @@ const (
 	centosSystemdSystemPath = "/usr/lib/systemd/system"
 
 	coreosSystemdSystemPath = "/etc/systemd/system"
+
+	flatcarSystemdSystemPath = "/etc/systemd/system"
 
 	containerosSystemdSystemPath = "/etc/systemd/system"
 )
@@ -101,7 +103,7 @@ func NewService(name string, contents string, meta string) (fi.Task, error) {
 	return s, nil
 }
 
-func (s *Service) InitDefaults() {
+func (s *Service) InitDefaults() *Service {
 	// Default some values to true: Running, SmartRestart, ManageState
 	if s.Running == nil {
 		s.Running = fi.Bool(true)
@@ -117,6 +119,8 @@ func (s *Service) InitDefaults() {
 	if s.Enabled == nil {
 		s.Enabled = s.Running
 	}
+
+	return s
 }
 
 func getSystemdStatus(name string) (map[string]string, error) {
@@ -148,6 +152,8 @@ func (e *Service) systemdSystemPath(target tags.HasTags) (string, error) {
 		return centosSystemdSystemPath, nil
 	} else if target.HasTag("_coreos") {
 		return coreosSystemdSystemPath, nil
+	} else if target.HasTag("_flatcar") {
+		return flatcarSystemdSystemPath, nil
 	} else if target.HasTag("_containeros") {
 		return containerosSystemdSystemPath, nil
 	} else {

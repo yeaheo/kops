@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -124,6 +124,10 @@ func TestDockerBuilder_1_12_1(t *testing.T) {
 
 func TestDockerBuilder_LogFlags(t *testing.T) {
 	runDockerBuilderTest(t, "logflags")
+}
+
+func TestDockerBuilder_SkipInstall(t *testing.T) {
+	runDockerBuilderTest(t, "skipinstall")
 }
 
 func TestDockerBuilder_BuildFlags(t *testing.T) {

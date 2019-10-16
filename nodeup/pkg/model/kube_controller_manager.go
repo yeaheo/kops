@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,18 +18,19 @@ package model
 
 import (
 	"fmt"
-	"k8s.io/kops/util/pkg/proxy"
 	"path/filepath"
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/kops/nodeup/pkg/distros"
 	"k8s.io/kops/pkg/flagbuilder"
 	"k8s.io/kops/pkg/k8scodecs"
 	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/nodeup/nodetasks"
 	"k8s.io/kops/util/pkg/exec"
+	"k8s.io/kops/util/pkg/proxy"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -152,6 +153,27 @@ func (b *KubeControllerManagerBuilder) buildPod() (*v1.Pod, error) {
 		},
 	}
 
+	volumePluginDir := b.Cluster.Spec.Kubelet.VolumePluginDirectory
+
+	// Ensure the Volume Plugin dir is mounted on the same path as the host machine so DaemonSet deployment is possible
+	if volumePluginDir == "" {
+		switch b.Distribution {
+		case distros.DistributionContainerOS:
+			// Default is different on ContainerOS, see https://github.com/kubernetes/kubernetes/pull/58171
+			volumePluginDir = "/home/kubernetes/flexvolume/"
+
+		case distros.DistributionCoreOS:
+			// The /usr directory is read-only for CoreOS
+			volumePluginDir = "/var/lib/kubelet/volumeplugins/"
+
+		default:
+			volumePluginDir = "/usr/libexec/kubernetes/kubelet-plugins/volume/exec/"
+		}
+	}
+
+	// Add the volumePluginDir flag if provided in the kubelet spec, or set above based on the OS
+	flags = append(flags, "--flex-volume-plugin-dir="+volumePluginDir)
+
 	container := &v1.Container{
 		Name:  "kube-controller-manager",
 		Image: b.Cluster.Spec.KubeControllerManager.Image,
@@ -209,9 +231,12 @@ func (b *KubeControllerManagerBuilder) buildPod() (*v1.Pod, error) {
 
 	addHostPathMapping(pod, container, "varlibkcm", "/var/lib/kube-controller-manager")
 
+	addHostPathMapping(pod, container, "volplugins", volumePluginDir).ReadOnly = false
+
 	pod.Spec.Containers = append(pod.Spec.Containers, *container)
 
 	kubemanifest.MarkPodAsCritical(pod)
+	kubemanifest.MarkPodAsClusterCritical(pod)
 
 	return pod, nil
 }

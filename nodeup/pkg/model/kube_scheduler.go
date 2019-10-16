@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,16 +18,17 @@ package model
 
 import (
 	"fmt"
-	"k8s.io/kops/util/pkg/proxy"
+	"strconv"
 
-	v1 "k8s.io/api/core/v1"
 	"k8s.io/kops/pkg/flagbuilder"
 	"k8s.io/kops/pkg/k8scodecs"
 	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/nodeup/nodetasks"
 	"k8s.io/kops/util/pkg/exec"
+	"k8s.io/kops/util/pkg/proxy"
 
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -164,9 +165,18 @@ func (b *KubeSchedulerBuilder) buildPod() (*v1.Pod, error) {
 			"/var/log/kube-scheduler.log")
 	}
 
+	if c.MaxPersistentVolumes != nil {
+		maxPDV := v1.EnvVar{
+			Name:  "KUBE_MAX_PD_VOLS", // https://kubernetes.io/docs/concepts/storage/storage-limits/
+			Value: strconv.Itoa(int(*c.MaxPersistentVolumes)),
+		}
+		container.Env = append(container.Env, maxPDV)
+	}
+
 	pod.Spec.Containers = append(pod.Spec.Containers, *container)
 
 	kubemanifest.MarkPodAsCritical(pod)
+	kubemanifest.MarkPodAsClusterCritical(pod)
 
 	return pod, nil
 }

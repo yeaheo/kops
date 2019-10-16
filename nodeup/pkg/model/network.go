@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ func (b *NetworkBuilder) Build(c *fi.ModelBuilderContext) error {
 	// @TODO need to clean up this code, it isn't the easiest to read
 	networking := b.Cluster.Spec.Networking
 	if networking == nil || networking.Classic != nil {
-	} else if networking.Kubenet != nil {
+	} else if networking.Kubenet != nil || networking.GCE != nil {
 		assetNames = append(assetNames, "bridge", "host-local", "loopback")
 	} else if networking.External != nil {
 		// external is based on kubenet
@@ -68,6 +68,32 @@ func (b *NetworkBuilder) Build(c *fi.ModelBuilderContext) error {
 		if err := b.addCNIBinAsset(c, assetName); err != nil {
 			return err
 		}
+	}
+
+	if networking.Cilium != nil {
+		var unit *string
+		unit = s(`
+[Unit]
+Description=Cilium BPF mounts
+Documentation=http://docs.cilium.io/
+DefaultDependencies=no
+Before=local-fs.target umount.target kubelet.service
+
+[Mount]
+What=bpffs
+Where=/sys/fs/bpf
+Type=bpf
+
+[Install]
+WantedBy=multi-user.target		
+`)
+
+		service := &nodetasks.Service{
+			Name:       "sys-fs-bpf.mount",
+			Definition: unit,
+		}
+		service.InitDefaults()
+		c.AddTask(service)
 	}
 
 	return nil

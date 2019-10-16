@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -165,6 +165,7 @@ func BuildEtcdManifest(c *EtcdCluster) *v1.Pod {
 	}
 
 	kubemanifest.MarkPodAsCritical(pod)
+	kubemanifest.MarkPodAsClusterCritical(pod)
 
 	return pod
 }
@@ -243,7 +244,7 @@ func buildCertificateDirectories(c *EtcdCluster) []string {
 	tracked := make(map[string]bool, 0)
 
 	for _, x := range []string{c.TLSCA, c.TLSCert, c.TLSKey, c.PeerCA, c.PeerKey, c.PeerKey} {
-		if x == "" || tracked[filepath.Dir(x)] == true {
+		if x == "" || tracked[filepath.Dir(x)] {
 			continue
 		}
 		tracked[filepath.Dir(x)] = true

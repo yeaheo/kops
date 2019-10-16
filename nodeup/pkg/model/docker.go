@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -557,7 +557,7 @@ var dockerVersions = []dockerVersion{
 		ExtraPackages: map[string]packageInfo{
 			"container-selinux": {
 				Version: "2.68",
-				Source:  "http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
+				Source:  "http://vault.centos.org/7.6.1810/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
 				Hash:    "d9f87f7f4f2e8e611f556d873a17b8c0c580fec0",
 			},
 		},
@@ -654,7 +654,7 @@ var dockerVersions = []dockerVersion{
 		ExtraPackages: map[string]packageInfo{
 			"container-selinux": {
 				Version: "2.68",
-				Source:  "http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
+				Source:  "http://vault.centos.org/7.6.1810/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
 				Hash:    "d9f87f7f4f2e8e611f556d873a17b8c0c580fec0",
 			},
 		},
@@ -692,7 +692,7 @@ var dockerVersions = []dockerVersion{
 		Distros:       []distros.Distribution{distros.DistributionRhel7, distros.DistributionCentos7},
 		Architectures: []Architecture{ArchitectureAmd64},
 		Version:       "2.68",
-		Source:        "http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
+		Source:        "http://vault.centos.org/7.6.1810/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
 		Hash:          "d9f87f7f4f2e8e611f556d873a17b8c0c580fec0",
 		Dependencies:  []string{"policycoreutils-python"},
 	},
@@ -760,11 +760,22 @@ var dockerVersions = []dockerVersion{
 		ExtraPackages: map[string]packageInfo{
 			"container-selinux": {
 				Version: "2.68",
-				Source:  "http://mirror.centos.org/centos/7/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
+				Source:  "http://vault.centos.org/7.6.1810/extras/x86_64/Packages/container-selinux-2.68-1.el7.noarch.rpm",
 				Hash:    "d9f87f7f4f2e8e611f556d873a17b8c0c580fec0",
 			},
 		},
 		Dependencies: []string{"libtool-ltdl", "libseccomp", "libcgroup", "policycoreutils-python"},
+	},
+	// 18.06.3 - CentOS / Rhel8 (two packages)
+	{
+		DockerVersion: "18.06.3",
+		Name:          "docker-ce",
+		Distros:       []distros.Distribution{distros.DistributionRhel8, distros.DistributionCentos8},
+		Architectures: []Architecture{ArchitectureAmd64},
+		Version:       "18.06.3.ce",
+		Source:        "https://download.docker.com/linux/centos/7/x86_64/stable/Packages/docker-ce-18.06.3.ce-3.el7.x86_64.rpm",
+		Hash:          "5369602f88406d4fb9159dc1d3fd44e76fb4cab8",
+		Dependencies:  []string{"container-selinux", "libtool-ltdl", "libseccomp", "libcgroup", "policycoreutils-python-utils", "python3-policycoreutils"},
 	},
 
 	// TIP: When adding the next version, copy the previous
@@ -815,6 +826,10 @@ func (b *DockerBuilder) dockerVersion() string {
 
 // Build is responsible for configuring the docker daemon
 func (b *DockerBuilder) Build(c *fi.ModelBuilderContext) error {
+	if b.skipInstall() {
+		klog.Infof("SkipInstall is set to true; won't install Docker")
+		return nil
+	}
 
 	// @check: neither coreos or containeros need provision docker.service, just the docker daemon options
 	switch b.Distribution {
@@ -1176,4 +1191,16 @@ func (b *DockerBuilder) buildSysconfig(c *fi.ModelBuilderContext) error {
 	})
 
 	return nil
+}
+
+// skipInstall determines if kops should skip the installation and configuration of Docker
+func (b *DockerBuilder) skipInstall() bool {
+	d := b.Cluster.Spec.Docker
+
+	// don't skip install if the user hasn't specified anything
+	if d == nil {
+		return false
+	}
+
+	return d.SkipInstall
 }

@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -139,9 +139,11 @@ func (o *Ocean) Find(c *fi.Context) (*Ocean, error) {
 
 	// Strategy.
 	{
-		actual.SpotPercentage = ocean.Strategy.SpotPercentage
-		actual.FallbackToOnDemand = ocean.Strategy.FallbackToOnDemand
-		actual.UtilizeReservedInstances = ocean.Strategy.UtilizeReservedInstances
+		if strategy := ocean.Strategy; strategy != nil {
+			actual.SpotPercentage = strategy.SpotPercentage
+			actual.FallbackToOnDemand = strategy.FallbackToOnDemand
+			actual.UtilizeReservedInstances = strategy.UtilizeReservedInstances
+		}
 	}
 
 	// Compute.

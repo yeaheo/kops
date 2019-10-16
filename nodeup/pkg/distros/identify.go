@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -74,6 +74,12 @@ func FindDistribution(rootfs string) (Distribution, error) {
 			}
 			if strings.HasPrefix(line, "CentOS Linux release 7.") {
 				return DistributionCentos7, nil
+			}
+			if strings.HasPrefix(line, "Red Hat Enterprise Linux release 8.") {
+				return DistributionRhel8, nil
+			}
+			if strings.HasPrefix(line, "CentOS Linux release 8.") {
+				return DistributionCentos8, nil
 			}
 		}
 		klog.Warningf("unhandled redhat-release info %q", string(lsbRelease))

@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -58,6 +58,11 @@ func (b *NetworkingOptionsBuilder) BuildOptions(o interface{}) error {
 			// ConfigureCBR0 flag removed from 1.5
 			options.Kubelet.ConfigureCBR0 = nil
 		}
+	}
+
+	if networking.GCE != nil {
+		// GCE IPAlias networking uses kubenet on the nodes
+		options.Kubelet.NetworkPluginName = "kubenet"
 	}
 
 	if networking.Classic != nil {

@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,6 +31,8 @@ var (
 	DistributionBionic      Distribution = "bionic"
 	DistributionRhel7       Distribution = "rhel7"
 	DistributionCentos7     Distribution = "centos7"
+	DistributionRhel8       Distribution = "rhel8"
+	DistributionCentos8     Distribution = "centos8"
 	DistributionCoreOS      Distribution = "coreos"
 	DistributionFlatcar     Distribution = "flatcar"
 	DistributionContainerOS Distribution = "containeros"
@@ -52,6 +54,10 @@ func (d Distribution) BuildTags() []string {
 		t = []string{"_centos7"}
 	case DistributionRhel7:
 		t = []string{"_rhel7"}
+	case DistributionCentos8:
+		t = []string{"_centos8"}
+	case DistributionRhel8:
+		t = []string{"_rhel8"}
 	case DistributionCoreOS:
 		t = []string{"_coreos"}
 	case DistributionFlatcar:
@@ -78,9 +84,27 @@ func (d Distribution) BuildTags() []string {
 
 func (d Distribution) IsDebianFamily() bool {
 	switch d {
-	case DistributionJessie, DistributionXenial, DistributionBionic, DistributionDebian9, DistributionDebian10:
+	case DistributionJessie, DistributionDebian9, DistributionDebian10:
+		return true
+	case DistributionXenial, DistributionBionic:
 		return true
 	case DistributionCentos7, DistributionRhel7:
+		return false
+	case DistributionCoreOS, DistributionContainerOS:
+		return false
+	default:
+		klog.Fatalf("unknown distribution: %s", d)
+		return false
+	}
+}
+
+func (d Distribution) IsUbuntu() bool {
+	switch d {
+	case DistributionJessie, DistributionDebian9, DistributionDebian10:
+		return false
+	case DistributionXenial, DistributionBionic:
+		return true
+	case DistributionCentos7, DistributionRhel7, DistributionCentos8, DistributionRhel8:
 		return false
 	case DistributionCoreOS, DistributionFlatcar, DistributionContainerOS:
 		return false
@@ -92,7 +116,7 @@ func (d Distribution) IsDebianFamily() bool {
 
 func (d Distribution) IsRHELFamily() bool {
 	switch d {
-	case DistributionCentos7, DistributionRhel7:
+	case DistributionCentos7, DistributionRhel7, DistributionCentos8, DistributionRhel8:
 		return true
 	case DistributionJessie, DistributionXenial, DistributionBionic, DistributionDebian9, DistributionDebian10:
 		return false
@@ -108,7 +132,7 @@ func (d Distribution) IsSystemd() bool {
 	switch d {
 	case DistributionJessie, DistributionXenial, DistributionBionic, DistributionDebian9, DistributionDebian10:
 		return true
-	case DistributionCentos7, DistributionRhel7:
+	case DistributionCentos7, DistributionRhel7, DistributionCentos8, DistributionRhel8:
 		return true
 	case DistributionCoreOS, DistributionFlatcar:
 		return true

@@ -95,6 +95,12 @@ resource "aws_autoscaling_group" "master-us-test-1a-masters-existing-iam-example
     propagate_at_launch = true
   }
 
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "master-us-test-1a"
+    propagate_at_launch = true
+  }
+
   metrics_granularity = "1Minute"
   enabled_metrics     = ["GroupDesiredCapacity", "GroupInServiceInstances", "GroupMaxSize", "GroupMinSize", "GroupPendingInstances", "GroupStandbyInstances", "GroupTerminatingInstances", "GroupTotalInstances"]
 }
@@ -121,6 +127,12 @@ resource "aws_autoscaling_group" "master-us-test-1b-masters-existing-iam-example
   tag = {
     key                 = "k8s.io/role/master"
     value               = "1"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "master-us-test-1b"
     propagate_at_launch = true
   }
 
@@ -153,6 +165,12 @@ resource "aws_autoscaling_group" "master-us-test-1c-masters-existing-iam-example
     propagate_at_launch = true
   }
 
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "master-us-test-1c"
+    propagate_at_launch = true
+  }
+
   metrics_granularity = "1Minute"
   enabled_metrics     = ["GroupDesiredCapacity", "GroupInServiceInstances", "GroupMaxSize", "GroupMinSize", "GroupPendingInstances", "GroupStandbyInstances", "GroupTerminatingInstances", "GroupTotalInstances"]
 }
@@ -179,6 +197,12 @@ resource "aws_autoscaling_group" "nodes-existing-iam-example-com" {
   tag = {
     key                 = "k8s.io/role/node"
     value               = "1"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "nodes"
     propagate_at_launch = true
   }
 
@@ -233,7 +257,7 @@ resource "aws_key_pair" "kubernetes-existing-iam-example-com-c4a6ed9aa889b9e2c39
 
 resource "aws_launch_configuration" "master-us-test-1a-masters-existing-iam-example-com" {
   name_prefix                 = "master-us-test-1a.masters.existing-iam.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "m3.medium"
   key_name                    = "${aws_key_pair.kubernetes-existing-iam-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "kops-custom-master-role"
@@ -261,7 +285,7 @@ resource "aws_launch_configuration" "master-us-test-1a-masters-existing-iam-exam
 
 resource "aws_launch_configuration" "master-us-test-1b-masters-existing-iam-example-com" {
   name_prefix                 = "master-us-test-1b.masters.existing-iam.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "m3.medium"
   key_name                    = "${aws_key_pair.kubernetes-existing-iam-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "kops-custom-master-role"
@@ -289,7 +313,7 @@ resource "aws_launch_configuration" "master-us-test-1b-masters-existing-iam-exam
 
 resource "aws_launch_configuration" "master-us-test-1c-masters-existing-iam-example-com" {
   name_prefix                 = "master-us-test-1c.masters.existing-iam.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "m3.medium"
   key_name                    = "${aws_key_pair.kubernetes-existing-iam-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "kops-custom-master-role"
@@ -317,7 +341,7 @@ resource "aws_launch_configuration" "master-us-test-1c-masters-existing-iam-exam
 
 resource "aws_launch_configuration" "nodes-existing-iam-example-com" {
   name_prefix                 = "nodes.existing-iam.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "t2.medium"
   key_name                    = "${aws_key_pair.kubernetes-existing-iam-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "kops-custom-node-role"

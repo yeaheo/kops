@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/kops/pkg/dns"
-
 	"github.com/gophercloud/gophercloud"
 	os "github.com/gophercloud/gophercloud/openstack"
 	cinder "github.com/gophercloud/gophercloud/openstack/blockstorage/v2/volumes"
@@ -36,6 +34,7 @@ import (
 	"github.com/gophercloud/gophercloud/openstack/compute/v2/servers"
 	"github.com/gophercloud/gophercloud/openstack/dns/v2/recordsets"
 	"github.com/gophercloud/gophercloud/openstack/dns/v2/zones"
+	"github.com/gophercloud/gophercloud/openstack/imageservice/v2/images"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/listeners"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/loadbalancers"
 	"github.com/gophercloud/gophercloud/openstack/loadbalancer/v2/monitors"
@@ -54,6 +53,7 @@ import (
 	"k8s.io/kops/dnsprovider/pkg/dnsprovider/providers/openstack/designate"
 	"k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/cloudinstances"
+	"k8s.io/kops/pkg/dns"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/util/pkg/vfs"
 )
@@ -134,6 +134,9 @@ type OpenstackCloud interface {
 
 	//DeleteSecurityGroup will delete securitygroup
 	DeleteSecurityGroup(sgID string) error
+
+	//DeleteSecurityGroupRule will delete securitygrouprule
+	DeleteSecurityGroupRule(ruleID string) error
 
 	//ListSecurityGroupRules will return the Neutron security group rules which match the options
 	ListSecurityGroupRules(opt sgr.ListOpts) ([]sgr.SecGroupRule, error)
@@ -271,7 +274,11 @@ type OpenstackCloud interface {
 
 	GetFloatingIP(id string) (fip *floatingips.FloatingIP, err error)
 
+	GetImage(name string) (i *images.Image, err error)
+
 	AssociateFloatingIPToInstance(serverID string, opts floatingips.AssociateOpts) (err error)
+
+	ListServerFloatingIPs(id string) ([]*string, error)
 
 	ListFloatingIPs() (fips []floatingips.FloatingIP, err error)
 	ListL3FloatingIPs(opts l3floatingip.ListOpts) (fips []l3floatingip.FloatingIP, err error)
@@ -282,17 +289,19 @@ type OpenstackCloud interface {
 }
 
 type openstackCloud struct {
-	cinderClient   *gophercloud.ServiceClient
-	neutronClient  *gophercloud.ServiceClient
-	novaClient     *gophercloud.ServiceClient
-	dnsClient      *gophercloud.ServiceClient
-	lbClient       *gophercloud.ServiceClient
-	extNetworkName *string
-	extSubnetName  *string
-	floatingSubnet *string
-	tags           map[string]string
-	region         string
-	useOctavia     bool
+	cinderClient    *gophercloud.ServiceClient
+	neutronClient   *gophercloud.ServiceClient
+	novaClient      *gophercloud.ServiceClient
+	dnsClient       *gophercloud.ServiceClient
+	lbClient        *gophercloud.ServiceClient
+	glanceClient    *gophercloud.ServiceClient
+	floatingEnabled bool
+	extNetworkName  *string
+	extSubnetName   *string
+	floatingSubnet  *string
+	tags            map[string]string
+	region          string
+	useOctavia      bool
 }
 
 var _ fi.Cloud = &openstackCloud{}
@@ -321,11 +330,13 @@ func NewOpenstackCloud(tags map[string]string, spec *kops.ClusterSpec) (Openstac
 		return nil, fmt.Errorf("error finding openstack region: %v", err)
 	}
 
-	tlsconfig := &tls.Config{}
-	tlsconfig.InsecureSkipVerify = true
-	transport := &http.Transport{TLSClientConfig: tlsconfig}
-	provider.HTTPClient = http.Client{
-		Transport: transport,
+	if spec != nil && spec.CloudConfig != nil && spec.CloudConfig.Openstack != nil && spec.CloudConfig.Openstack.InsecureSkipVerify != nil {
+		tlsconfig := &tls.Config{}
+		tlsconfig.InsecureSkipVerify = fi.BoolValue(spec.CloudConfig.Openstack.InsecureSkipVerify)
+		transport := &http.Transport{TLSClientConfig: tlsconfig}
+		provider.HTTPClient = http.Client{
+			Transport: transport,
+		}
 	}
 
 	klog.V(2).Info("authenticating to keystone")
@@ -360,6 +371,14 @@ func NewOpenstackCloud(tags map[string]string, spec *kops.ClusterSpec) (Openstac
 		return nil, fmt.Errorf("error building nova client: %v", err)
 	}
 
+	glanceClient, err := os.NewImageServiceV2(provider, gophercloud.EndpointOpts{
+		Type:   "image",
+		Region: region,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error building glance client: %v", err)
+	}
+
 	var dnsClient *gophercloud.ServiceClient
 	if !dns.IsGossipHostname(tags[TagClusterName]) {
 		//TODO: This should be replaced with the environment variable methods as done above
@@ -379,17 +398,20 @@ func NewOpenstackCloud(tags map[string]string, spec *kops.ClusterSpec) (Openstac
 		neutronClient: neutronClient,
 		novaClient:    novaClient,
 		dnsClient:     dnsClient,
+		glanceClient:  glanceClient,
 		tags:          tags,
 		region:        region,
 		useOctavia:    false,
 	}
 
 	octavia := false
+	floatingEnabled := false
 	if spec != nil &&
 		spec.CloudConfig != nil &&
 		spec.CloudConfig.Openstack != nil &&
 		spec.CloudConfig.Openstack.Router != nil {
 
+		floatingEnabled = true
 		c.extNetworkName = spec.CloudConfig.Openstack.Router.ExternalNetwork
 
 		if spec.CloudConfig.Openstack.Router.ExternalSubnet != nil {
@@ -407,30 +429,37 @@ func NewOpenstackCloud(tags map[string]string, spec *kops.ClusterSpec) (Openstac
 			}
 			spec.CloudConfig.Openstack.Loadbalancer.FloatingNetworkID = fi.String(lbNet[0].ID)
 		}
-		if spec.CloudConfig.Openstack.Loadbalancer.UseOctavia != nil {
-			octavia = fi.BoolValue(spec.CloudConfig.Openstack.Loadbalancer.UseOctavia)
-		}
-		if spec.CloudConfig.Openstack.Loadbalancer.FloatingSubnet != nil {
-			c.floatingSubnet = spec.CloudConfig.Openstack.Loadbalancer.FloatingSubnet
+		if spec.CloudConfig.Openstack.Loadbalancer != nil {
+			if spec.CloudConfig.Openstack.Loadbalancer.UseOctavia != nil {
+				octavia = fi.BoolValue(spec.CloudConfig.Openstack.Loadbalancer.UseOctavia)
+			}
+			if spec.CloudConfig.Openstack.Loadbalancer.FloatingSubnet != nil {
+				c.floatingSubnet = spec.CloudConfig.Openstack.Loadbalancer.FloatingSubnet
+			}
 		}
 	}
+	c.floatingEnabled = floatingEnabled
 	c.useOctavia = octavia
 	var lbClient *gophercloud.ServiceClient
-	if octavia {
-		klog.V(2).Infof("Openstack using Octavia lbaasv2 api")
-		lbClient, err = os.NewLoadBalancerV2(provider, gophercloud.EndpointOpts{
-			Region: region,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error building lb client: %v", err)
-		}
-	} else {
-		klog.V(2).Infof("Openstack using deprecated lbaasv2 api")
-		lbClient, err = os.NewNetworkV2(provider, gophercloud.EndpointOpts{
-			Region: region,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error building lb client: %v", err)
+	if spec != nil && spec.CloudConfig != nil && spec.CloudConfig.Openstack != nil {
+		if spec.CloudConfig.Openstack.Loadbalancer != nil && octavia {
+			klog.V(2).Infof("Openstack using Octavia lbaasv2 api")
+			lbClient, err = os.NewLoadBalancerV2(provider, gophercloud.EndpointOpts{
+				Region: region,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("error building lb client: %v", err)
+			}
+		} else if spec.CloudConfig.Openstack.Loadbalancer != nil {
+			klog.V(2).Infof("Openstack using deprecated lbaasv2 api")
+			lbClient, err = os.NewNetworkV2(provider, gophercloud.EndpointOpts{
+				Region: region,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("error building lb client: %v", err)
+			}
+		} else {
+			klog.V(2).Infof("Openstack disabled loadbalancer support")
 		}
 	}
 	c.lbClient = lbClient
@@ -547,30 +576,59 @@ func (c *openstackCloud) GetCloudTags() map[string]string {
 	return c.tags
 }
 
+type Address struct {
+	IPType string `mapstructure:"OS-EXT-IPS:type"`
+	Addr   string
+}
+
 func (c *openstackCloud) GetApiIngressStatus(cluster *kops.Cluster) ([]kops.ApiIngressStatus, error) {
 	var ingresses []kops.ApiIngressStatus
-	if cluster.Spec.MasterPublicName != "" {
-		// Note that this must match OpenstackModel lb name
-		klog.V(2).Infof("Querying Openstack to find Loadbalancers for API (%q)", cluster.Name)
-		lbList, err := c.ListLBs(loadbalancers.ListOpts{
-			Name: cluster.Spec.MasterPublicName,
-		})
-		if err != nil {
-			return ingresses, fmt.Errorf("GetApiIngressStatus: Failed to list openstack loadbalancers: %v", err)
-		}
-		// Must Find Floating IP related to this lb
-		fips, err := c.ListFloatingIPs()
-		if err != nil {
-			return ingresses, fmt.Errorf("GetApiIngressStatus: Failed to list floating IP's: %v", err)
-		}
+	if cluster.Spec.CloudConfig.Openstack.Loadbalancer != nil {
+		if cluster.Spec.MasterPublicName != "" {
+			// Note that this must match OpenstackModel lb name
+			klog.V(2).Infof("Querying Openstack to find Loadbalancers for API (%q)", cluster.Name)
+			lbList, err := c.ListLBs(loadbalancers.ListOpts{
+				Name: cluster.Spec.MasterPublicName,
+			})
+			if err != nil {
+				return ingresses, fmt.Errorf("GetApiIngressStatus: Failed to list openstack loadbalancers: %v", err)
+			}
+			// Must Find Floating IP related to this lb
+			fips, err := c.ListFloatingIPs()
+			if err != nil {
+				return ingresses, fmt.Errorf("GetApiIngressStatus: Failed to list floating IP's: %v", err)
+			}
 
-		for _, lb := range lbList {
-			for _, fip := range fips {
-				if fip.FixedIP == lb.VipAddress {
-
-					ingresses = append(ingresses, kops.ApiIngressStatus{
-						IP: fip.IP,
-					})
+			for _, lb := range lbList {
+				for _, fip := range fips {
+					if fip.FixedIP == lb.VipAddress {
+						ingresses = append(ingresses, kops.ApiIngressStatus{
+							IP: fip.IP,
+						})
+					}
+				}
+			}
+		}
+	} else {
+		instances, err := c.ListInstances(servers.ListOpts{})
+		if err != nil {
+			return ingresses, fmt.Errorf("GetApiIngressStatus: Failed to list master nodes: %v", err)
+		}
+		for _, instance := range instances {
+			val, ok := instance.Metadata["k8s"]
+			val2, ok2 := instance.Metadata["KopsRole"]
+			if ok && val == cluster.Name && ok2 {
+				role, success := kops.ParseInstanceGroupRole(val2, false)
+				if success && role == kops.InstanceGroupRoleMaster {
+					ips, err := c.ListServerFloatingIPs(instance.ID)
+					if err != nil {
+						return ingresses, err
+					}
+					for _, ip := range ips {
+						ingresses = append(ingresses, kops.ApiIngressStatus{
+							IP: fi.StringValue(ip),
+						})
+					}
 				}
 			}
 		}

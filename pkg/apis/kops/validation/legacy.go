@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -184,31 +184,42 @@ func ValidateCluster(c *kops.Cluster, strict bool) *field.Error {
 		}
 	}
 
+	// nonMasqueradeCIDR is essentially deprecated, and we're moving to cluster-cidr instead (which is better named pod-cidr)
+	nonMasqueradeCIDRRequired := true
+	serviceClusterMustBeSubnetOfNonMasqueradeCIDR := true
+	if c.Spec.Networking != nil && c.Spec.Networking.GCE != nil {
+		nonMasqueradeCIDRRequired = false
+		serviceClusterMustBeSubnetOfNonMasqueradeCIDR = false
+	}
+
 	// Check NonMasqueradeCIDR
 	var nonMasqueradeCIDR *net.IPNet
 	{
 		nonMasqueradeCIDRString := c.Spec.NonMasqueradeCIDR
 		if nonMasqueradeCIDRString == "" {
-			return field.Required(fieldSpec.Child("NonMasqueradeCIDR"), "Cluster did not have NonMasqueradeCIDR set")
-		}
-		_, nonMasqueradeCIDR, err = net.ParseCIDR(nonMasqueradeCIDRString)
-		if err != nil {
-			return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, "Cluster had an invalid NonMasqueradeCIDR")
-		}
-
-		if networkCIDR != nil && subnet.Overlap(nonMasqueradeCIDR, networkCIDR) && c.Spec.Networking != nil && c.Spec.Networking.AmazonVPC == nil && c.Spec.Networking.LyftVPC == nil {
-
-			return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, fmt.Sprintf("NonMasqueradeCIDR %q cannot overlap with NetworkCIDR %q", nonMasqueradeCIDRString, c.Spec.NetworkCIDR))
-		}
-
-		if c.Spec.Kubelet != nil && c.Spec.Kubelet.NonMasqueradeCIDR != nonMasqueradeCIDRString {
-			if strict || c.Spec.Kubelet.NonMasqueradeCIDR != "" {
-				return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, "Kubelet NonMasqueradeCIDR did not match cluster NonMasqueradeCIDR")
+			if nonMasqueradeCIDRRequired {
+				return field.Required(fieldSpec.Child("NonMasqueradeCIDR"), "Cluster did not have NonMasqueradeCIDR set")
 			}
-		}
-		if c.Spec.MasterKubelet != nil && c.Spec.MasterKubelet.NonMasqueradeCIDR != nonMasqueradeCIDRString {
-			if strict || c.Spec.MasterKubelet.NonMasqueradeCIDR != "" {
-				return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, "MasterKubelet NonMasqueradeCIDR did not match cluster NonMasqueradeCIDR")
+		} else {
+			_, nonMasqueradeCIDR, err = net.ParseCIDR(nonMasqueradeCIDRString)
+			if err != nil {
+				return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, "Cluster had an invalid NonMasqueradeCIDR")
+			}
+
+			if networkCIDR != nil && subnet.Overlap(nonMasqueradeCIDR, networkCIDR) && c.Spec.Networking != nil && c.Spec.Networking.AmazonVPC == nil && c.Spec.Networking.LyftVPC == nil {
+
+				return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, fmt.Sprintf("NonMasqueradeCIDR %q cannot overlap with NetworkCIDR %q", nonMasqueradeCIDRString, c.Spec.NetworkCIDR))
+			}
+
+			if c.Spec.Kubelet != nil && c.Spec.Kubelet.NonMasqueradeCIDR != nonMasqueradeCIDRString {
+				if strict || c.Spec.Kubelet.NonMasqueradeCIDR != "" {
+					return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, "Kubelet NonMasqueradeCIDR did not match cluster NonMasqueradeCIDR")
+				}
+			}
+			if c.Spec.MasterKubelet != nil && c.Spec.MasterKubelet.NonMasqueradeCIDR != nonMasqueradeCIDRString {
+				if strict || c.Spec.MasterKubelet.NonMasqueradeCIDR != "" {
+					return field.Invalid(fieldSpec.Child("NonMasqueradeCIDR"), nonMasqueradeCIDRString, "MasterKubelet NonMasqueradeCIDR did not match cluster NonMasqueradeCIDR")
+				}
 			}
 		}
 	}
@@ -227,7 +238,7 @@ func ValidateCluster(c *kops.Cluster, strict bool) *field.Error {
 				return field.Invalid(fieldSpec.Child("ServiceClusterIPRange"), serviceClusterIPRangeString, "Cluster had an invalid ServiceClusterIPRange")
 			}
 
-			if !subnet.BelongsTo(nonMasqueradeCIDR, serviceClusterIPRange) {
+			if nonMasqueradeCIDR != nil && serviceClusterMustBeSubnetOfNonMasqueradeCIDR && !subnet.BelongsTo(nonMasqueradeCIDR, serviceClusterIPRange) {
 				return field.Invalid(fieldSpec.Child("ServiceClusterIPRange"), serviceClusterIPRangeString, fmt.Sprintf("ServiceClusterIPRange %q must be a subnet of NonMasqueradeCIDR %q", serviceClusterIPRangeString, c.Spec.NonMasqueradeCIDR))
 			}
 
@@ -273,7 +284,7 @@ func ValidateCluster(c *kops.Cluster, strict bool) *field.Error {
 				return field.Invalid(fieldSpec.Child("KubeControllerManager", "ClusterCIDR"), clusterCIDRString, "Cluster had an invalid KubeControllerManager.ClusterCIDR")
 			}
 
-			if !subnet.BelongsTo(nonMasqueradeCIDR, clusterCIDR) {
+			if nonMasqueradeCIDR != nil && !subnet.BelongsTo(nonMasqueradeCIDR, clusterCIDR) {
 				return field.Invalid(fieldSpec.Child("KubeControllerManager", "ClusterCIDR"), clusterCIDRString, fmt.Sprintf("KubeControllerManager.ClusterCIDR %q must be a subnet of NonMasqueradeCIDR %q", clusterCIDRString, c.Spec.NonMasqueradeCIDR))
 			}
 		}
@@ -411,7 +422,7 @@ func ValidateCluster(c *kops.Cluster, strict bool) *field.Error {
 				return field.Invalid(path.Child("tokenTTL"), c.Spec.NodeAuthorization.NodeAuthorizer.TokenTTL, "must be greater than or equal to zero")
 			}
 
-			// @question: we could probably just default theses settings in the model when the node-authorizer is enabled??
+			// @question: we could probably just default these settings in the model when the node-authorizer is enabled??
 			if c.Spec.KubeAPIServer == nil {
 				return field.Invalid(field.NewPath("kubeAPIServer"), c.Spec.KubeAPIServer, "bootstrap token authentication is not enabled in the kube-apiserver")
 			}
@@ -709,7 +720,7 @@ func validateEtcdStorage(specs []*kops.EtcdClusterSpec, fieldPath *field.Path) *
 // validateEtcdVersion is responsible for validating the storage version of etcd
 // @TODO semvar package doesn't appear to ignore a 'v' in v1.1.1 should could be a problem later down the line
 func validateEtcdVersion(spec *kops.EtcdClusterSpec, fieldPath *field.Path, minimalVersion *semver.Version) *field.Error {
-	// @check if the storage is specified, thats is valid
+	// @check if the storage is specified, that's is valid
 
 	if minimalVersion == nil {
 		v := semver.MustParse("0.0.0")
@@ -758,12 +769,6 @@ func validateCilium(c *kops.Cluster) *field.Error {
 		kubeVersion := semver.MustParse(c.Spec.KubernetesVersion)
 		if kubeVersion.LT(minimalKubeVersion) {
 			return field.Invalid(specPath.Child("KubernetesVersion"), c.Spec.KubernetesVersion, "Cilium needs at least Kubernetes 1.7")
-		}
-
-		minimalVersion := semver.MustParse("3.1.0")
-		path := specPath.Child("EtcdClusters").Index(0)
-		if err := validateEtcdVersion(c.Spec.EtcdClusters[0], path, &minimalVersion); err != nil {
-			return err
 		}
 	}
 	return nil

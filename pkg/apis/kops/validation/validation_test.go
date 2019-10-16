@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -146,10 +146,12 @@ func TestValidateSubnets(t *testing.T) {
 
 func TestValidateKubeAPIServer(t *testing.T) {
 	str := "foobar"
+	authzMode := "RBAC,Webhook"
 
 	grid := []struct {
 		Input          kops.KubeAPIServerConfig
 		ExpectedErrors []string
+		ExpectedDetail string
 	}{
 		{
 			Input: kops.KubeAPIServerConfig{
@@ -158,6 +160,7 @@ func TestValidateKubeAPIServer(t *testing.T) {
 			ExpectedErrors: []string{
 				"Invalid value::KubeAPIServer",
 			},
+			ExpectedDetail: "ProxyClientCertFile and ProxyClientKeyFile must both be specified (or not all)",
 		},
 		{
 			Input: kops.KubeAPIServerConfig{
@@ -166,6 +169,7 @@ func TestValidateKubeAPIServer(t *testing.T) {
 			ExpectedErrors: []string{
 				"Invalid value::KubeAPIServer",
 			},
+			ExpectedDetail: "ProxyClientCertFile and ProxyClientKeyFile must both be specified (or not all)",
 		},
 		{
 			Input: kops.KubeAPIServerConfig{
@@ -175,11 +179,36 @@ func TestValidateKubeAPIServer(t *testing.T) {
 				"Invalid value::KubeAPIServer",
 			},
 		},
+		{
+			Input: kops.KubeAPIServerConfig{
+				AuthorizationMode: &authzMode,
+			},
+			ExpectedErrors: []string{
+				"Invalid value::KubeAPIServer",
+			},
+			ExpectedDetail: "Authorization mode Webhook requires AuthorizationWebhookConfigFile to be specified",
+		},
 	}
 	for _, g := range grid {
 		errs := validateKubeAPIServer(&g.Input, field.NewPath("KubeAPIServer"))
 
 		testErrors(t, g.Input, errs, g.ExpectedErrors)
+
+		if g.ExpectedDetail != "" {
+			found := false
+			for _, err := range errs {
+				if err.Detail == g.ExpectedDetail {
+					found = true
+				}
+			}
+			if !found {
+				for _, err := range errs {
+					t.Logf("found detail: %q", err.Detail)
+				}
+
+				t.Errorf("did not find expected error %q", g.ExpectedDetail)
+			}
+		}
 	}
 }
 
@@ -237,7 +266,10 @@ func Test_Validate_Networking_Flannel(t *testing.T) {
 		networking := &kops.NetworkingSpec{}
 		networking.Flannel = &g.Input
 
-		errs := validateNetworking(networking, field.NewPath("Networking"))
+		cluster := &kops.Cluster{}
+		cluster.Spec.Networking = networking
+
+		errs := validateNetworking(&cluster.Spec, networking, field.NewPath("Networking"))
 		testErrors(t, g.Input, errs, g.ExpectedErrors)
 	}
 }
@@ -307,6 +339,23 @@ func Test_Validate_Calico(t *testing.T) {
 				Calico: &kops.CalicoNetworkingSpec{},
 				Etcd:   &kops.EtcdClusterSpec{},
 			},
+		},
+		{
+			Input: caliInput{
+				Calico: &kops.CalicoNetworkingSpec{
+					TyphaReplicas: 3,
+				},
+				Etcd: &kops.EtcdClusterSpec{},
+			},
+		},
+		{
+			Input: caliInput{
+				Calico: &kops.CalicoNetworkingSpec{
+					TyphaReplicas: -1,
+				},
+				Etcd: &kops.EtcdClusterSpec{},
+			},
+			ExpectedErrors: []string{"Invalid value::Calico.TyphaReplicas"},
 		},
 		{
 			Input: caliInput{

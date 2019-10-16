@@ -68,6 +68,14 @@ spec:
       useForInternalApi: true
 ```
 
+You can also set the API load balancer to be cross-zone:
+```yaml
+spec:
+  api:
+    loadBalancer:
+      crossZoneLoadBalancing: true
+```
+
 ### etcdClusters v3 & tls
 
 Although kops doesn't presently default to etcd3, it is possible to turn on both v3 and TLS authentication for communication amongst cluster members. These options may be enabled via the cluster spec (manifests only i.e. no command line options as yet). An upfront warning; at present no upgrade path exists for migrating from v2 to v3 so **DO NOT** try to enable this on a v2 running cluster as it must be done on cluster creation. The below example snippet assumes a HA cluster of three masters.
@@ -401,6 +409,21 @@ spec:
     amazonvpc: {}
 ```
 
+#### Configure a Flex Volume plugin directory
+An optional flag can be provided within the KubeletSpec to set a volume plugin directory (must be accessible for read/write operations), which is additionally provided to the Controller Manager and mounted in accordingly.
+
+Kops will set this for you based off the Operating System in use:
+- ContainerOS: `/home/kubernetes/flexvolume/`
+- CoreOS: `/var/lib/kubelet/volumeplugins/`
+- Default (in-line with upstream k8s): `/usr/libexec/kubernetes/kubelet-plugins/volume/exec/`
+
+If you wish to override this value, it can be done so with the following addition to the kubelet spec:
+```yaml
+spec:
+  kubelet:
+    volumePluginDirectory: /provide/a/writable/path/here
+```
+
 ### kubeScheduler
 
 This block contains configurations for `kube-scheduler`.  See https://kubernetes.io/docs/admin/kube-scheduler/
@@ -435,7 +458,42 @@ Specifying KubeDNS will install kube-dns as the default service discovery.
 
 This will install [CoreDNS](https://coredns.io/) instead of kube-dns.
 
-**Note:** If you are upgrading to CoreDNS, kube-dns will be left in place and must be removed manually (you can scale the kube-dns and kube-dns-autoscaler deployments in the `kube-system` namespace to 0 as a starting point). The `kube-dns` Service itself should be left in place, as this retains the ClusterIP and eliminates the possibility of DNS outages in your cluster. If you would like to continue autoscaling, update the `kube-dns-autoscaler` Deployment container command for `--target=Deployment/kube-dns` to be `--target=Deployment/coredns`. 
+If you are using CoreDNS and want to use an entirely custom CoreFile you can do this by specifying the file. This will not work with any other options which interact with the default CoreFile.
+
+**Note:** If you are using this functionality you will need to be extra vigiliant on version changes of CoreDNS for changes in functionality of the plugins being used etc.
+
+```yaml
+spec:
+  kubeDNS:
+    provider: CoreDNS
+    externalCoreFile: |
+      amazonaws.com:53 {
+            errors
+            log . {
+                class denial error
+            }
+            health :8084
+            prometheus :9153
+            proxy . 169.254.169.253 {
+            }
+            cache 30
+        }
+        .:53 {
+            errors
+            health :8080
+            autopath @kubernetes
+            kubernetes cluster.local {
+                pods verified
+                upstream 169.254.169.253
+                fallthrough in-addr.arpa ip6.arpa
+            }
+            prometheus :9153
+            proxy . 169.254.169.253
+            cache 300
+        }
+```
+
+**Note:** If you are upgrading to CoreDNS, kube-dns will be left in place and must be removed manually (you can scale the kube-dns and kube-dns-autoscaler deployments in the `kube-system` namespace to 0 as a starting point). The `kube-dns` Service itself should be left in place, as this retains the ClusterIP and eliminates the possibility of DNS outages in your cluster. If you would like to continue autoscaling, update the `kube-dns-autoscaler` Deployment container command for `--target=Deployment/kube-dns` to be `--target=Deployment/coredns`.
 
 ### kubeControllerManager
 This block contains configurations for the `controller-manager`.
@@ -445,6 +503,7 @@ spec:
   kubeControllerManager:
     horizontalPodAutoscalerSyncPeriod: 15s
     horizontalPodAutoscalerDownscaleDelay: 5m0s
+    horizontalPodAutoscalerDownscaleStabilization: 5m
     horizontalPodAutoscalerUpscaleDelay: 3m0s
     horizontalPodAutoscalerTolerance: 0.1
     experimentalClusterSigningDuration: 8760h0m0s
@@ -674,6 +733,18 @@ spec:
     - https://registry.example.com
 ```
 
+#### Skip Install
+
+If you want nodeup to skip the Docker installation tasks, you can do so with:
+
+```yaml
+spec:
+  docker:
+    skipInstall: true
+``` 
+
+**NOTE:** When this field is set to `true`, it is entirely up to the user to install and configure Docker.
+
 #### storage
 
 The Docker [Storage Driver](https://docs.docker.com/engine/reference/commandline/dockerd/#daemon-storage-driver) can be specified in order to override the default. Be sure the driver you choose is supported by your operating system and docker version.
@@ -696,6 +767,34 @@ Providing the name of a key already in AWS is an alternative to `--ssh-public-ke
 spec:
   sshKeyName: myexistingkey
 ```
+
+### useHostCertificates
+
+Self-signed certificates towards Cloud APIs. In some cases Cloud APIs do have self-signed certificates.
+
+```yaml
+spec:
+  useHostCertificates: true
+```
+
+#### Optional step: add root certificates to instancegroups root ca bundle
+
+```yaml
+  additionalUserData:
+  - name: cacert.sh
+    type: text/x-shellscript
+    content: |
+      #!/bin/sh
+      cat > /usr/local/share/ca-certificates/mycert.crt <<EOF
+      -----BEGIN CERTIFICATE-----
+snip
+      -----END CERTIFICATE-----
+      EOF
+      update-ca-certificates
+```
+
+**NOTE**: `update-ca-certificates` is command for debian/ubuntu. That command is different depending your OS.
+
 
 ### target
 

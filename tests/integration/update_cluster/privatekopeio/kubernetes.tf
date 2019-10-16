@@ -160,6 +160,12 @@ resource "aws_autoscaling_group" "bastion-privatekopeio-example-com" {
     propagate_at_launch = true
   }
 
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "bastion"
+    propagate_at_launch = true
+  }
+
   metrics_granularity = "1Minute"
   enabled_metrics     = ["GroupDesiredCapacity", "GroupInServiceInstances", "GroupMaxSize", "GroupMinSize", "GroupPendingInstances", "GroupStandbyInstances", "GroupTerminatingInstances", "GroupTotalInstances"]
 }
@@ -189,6 +195,12 @@ resource "aws_autoscaling_group" "master-us-test-1a-masters-privatekopeio-exampl
     propagate_at_launch = true
   }
 
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "master-us-test-1a"
+    propagate_at_launch = true
+  }
+
   metrics_granularity = "1Minute"
   enabled_metrics     = ["GroupDesiredCapacity", "GroupInServiceInstances", "GroupMaxSize", "GroupMinSize", "GroupPendingInstances", "GroupStandbyInstances", "GroupTerminatingInstances", "GroupTotalInstances"]
 }
@@ -215,6 +227,12 @@ resource "aws_autoscaling_group" "nodes-privatekopeio-example-com" {
   tag = {
     key                 = "k8s.io/role/node"
     value               = "1"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "nodes"
     propagate_at_launch = true
   }
 
@@ -273,7 +291,8 @@ resource "aws_elb" "api-privatekopeio-example-com" {
     timeout             = 5
   }
 
-  idle_timeout = 300
+  cross_zone_load_balancing = false
+  idle_timeout              = 300
 
   tags = {
     KubernetesCluster                                 = "privatekopeio.example.com"
@@ -377,7 +396,7 @@ resource "aws_key_pair" "kubernetes-privatekopeio-example-com-c4a6ed9aa889b9e2c3
 
 resource "aws_launch_configuration" "bastion-privatekopeio-example-com" {
   name_prefix                 = "bastion.privatekopeio.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "t2.micro"
   key_name                    = "${aws_key_pair.kubernetes-privatekopeio-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.bastions-privatekopeio-example-com.id}"
@@ -399,7 +418,7 @@ resource "aws_launch_configuration" "bastion-privatekopeio-example-com" {
 
 resource "aws_launch_configuration" "master-us-test-1a-masters-privatekopeio-example-com" {
   name_prefix                 = "master-us-test-1a.masters.privatekopeio.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "m3.medium"
   key_name                    = "${aws_key_pair.kubernetes-privatekopeio-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.masters-privatekopeio-example-com.id}"
@@ -427,7 +446,7 @@ resource "aws_launch_configuration" "master-us-test-1a-masters-privatekopeio-exa
 
 resource "aws_launch_configuration" "nodes-privatekopeio-example-com" {
   name_prefix                 = "nodes.privatekopeio.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "t2.medium"
   key_name                    = "${aws_key_pair.kubernetes-privatekopeio-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.nodes-privatekopeio-example-com.id}"

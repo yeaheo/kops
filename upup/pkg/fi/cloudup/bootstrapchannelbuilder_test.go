@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,15 +18,12 @@ package cloudup
 
 import (
 	"io/ioutil"
-	"os"
 	"path"
-	"strings"
 	"testing"
 
 	api "k8s.io/kops/pkg/apis/kops"
 	"k8s.io/kops/pkg/assets"
 	"k8s.io/kops/pkg/client/simple/vfsclientset"
-	"k8s.io/kops/pkg/diff"
 	"k8s.io/kops/pkg/kopscodecs"
 	"k8s.io/kops/pkg/model"
 	"k8s.io/kops/pkg/templates"
@@ -43,13 +40,13 @@ func TestBootstrapChannelBuilder_BuildTasks(t *testing.T) {
 
 	h.SetupMockAWS()
 
-	runChannelBuilderTest(t, "simple")
-	runChannelBuilderTest(t, "kopeio-vxlan")
-	runChannelBuilderTest(t, "weave")
-	runChannelBuilderTest(t, "cilium")
+	runChannelBuilderTest(t, "simple", []string{"dns-controller.addons.k8s.io-k8s-1.12", "kops-controller.addons.k8s.io-k8s-1.16"})
+	// Use cilium networking, proxy
+	runChannelBuilderTest(t, "cilium", []string{"dns-controller.addons.k8s.io-k8s-1.12", "kops-controller.addons.k8s.io-k8s-1.16"})
+	runChannelBuilderTest(t, "weave", []string{})
 }
 
-func runChannelBuilderTest(t *testing.T, key string) {
+func runChannelBuilderTest(t *testing.T, key string, addonManifests []string) {
 	basedir := path.Join("tests/bootstrapchannelbuilder/", key)
 
 	clusterYamlPath := path.Join(basedir, "cluster.yaml")
@@ -108,32 +105,40 @@ func runChannelBuilderTest(t *testing.T, key string) {
 		t.Fatalf("error from BootstrapChannelBuilder Build: %v", err)
 	}
 
-	name := cluster.ObjectMeta.Name + "-addons-bootstrap"
-	manifestTask := context.Tasks[name]
-	if manifestTask == nil {
-		t.Fatalf("manifest task not found (%q)", name)
-	}
-
-	manifestFileTask := manifestTask.(*fitasks.ManagedFile)
-	actualManifest, err := manifestFileTask.Contents.AsString()
-	if err != nil {
-		t.Fatalf("error getting manifest as string: %v", err)
-	}
-
-	expectedManifestPath := path.Join(basedir, "manifest.yaml")
-	expectedManifest, err := ioutil.ReadFile(expectedManifestPath)
-	if err != nil {
-		t.Fatalf("error reading file %q: %v", expectedManifestPath, err)
-	}
-
-	if strings.TrimSpace(string(expectedManifest)) != strings.TrimSpace(actualManifest) {
-		diffString := diff.FormatDiff(string(expectedManifest), actualManifest)
-		t.Logf("diff:\n%s\n", diffString)
-		t.Errorf("manifest differed from expected for test %q", key)
-		if os.Getenv("UPDATE_CHANNEL_BUILDER_TEST_FIXTURES") == "true" {
-			ioutil.WriteFile(expectedManifestPath, []byte(actualManifest), 0755)
-		} else {
-			t.Logf("to update fixtures automatically, run with UPDATE_CHANNEL_BUILDER_TEST_FIXTURES=true")
+	{
+		name := cluster.ObjectMeta.Name + "-addons-bootstrap"
+		manifestTask := context.Tasks[name]
+		if manifestTask == nil {
+			t.Fatalf("manifest task not found (%q)", name)
 		}
+
+		manifestFileTask := manifestTask.(*fitasks.ManagedFile)
+		actualManifest, err := manifestFileTask.Contents.AsString()
+		if err != nil {
+			t.Fatalf("error getting manifest as string: %v", err)
+		}
+
+		expectedManifestPath := path.Join(basedir, "manifest.yaml")
+		testutils.AssertMatchesFile(t, actualManifest, expectedManifestPath)
+	}
+
+	for _, k := range addonManifests {
+		name := cluster.ObjectMeta.Name + "-addons-" + k
+		manifestTask := context.Tasks[name]
+		if manifestTask == nil {
+			for k := range context.Tasks {
+				t.Logf("found task %s", k)
+			}
+			t.Fatalf("manifest task not found (%q)", name)
+		}
+
+		manifestFileTask := manifestTask.(*fitasks.ManagedFile)
+		actualManifest, err := manifestFileTask.Contents.AsString()
+		if err != nil {
+			t.Fatalf("error getting manifest as string: %v", err)
+		}
+
+		expectedManifestPath := path.Join(basedir, k+".yaml")
+		testutils.AssertMatchesFile(t, actualManifest, expectedManifestPath)
 	}
 }

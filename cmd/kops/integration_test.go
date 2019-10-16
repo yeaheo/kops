@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,7 +35,6 @@ import (
 	"time"
 
 	"k8s.io/kops/cmd/kops/util"
-	"k8s.io/kops/pkg/diff"
 	"k8s.io/kops/pkg/featureflag"
 	"k8s.io/kops/pkg/jsonutils"
 	"k8s.io/kops/pkg/testutils"
@@ -78,6 +77,13 @@ func TestHighAvailabilityGCE(t *testing.T) {
 func TestComplex(t *testing.T) {
 	runTestAWS(t, "complex.example.com", "complex", "v1alpha2", false, 1, true, false, nil)
 	runTestAWS(t, "complex.example.com", "complex", "legacy-v1alpha2", false, 1, true, false, nil)
+
+	runTestCloudformation(t, "complex.example.com", "complex", "v1alpha2", false, nil)
+}
+
+// TestCrossZone tests that the cross zone setting on the API ELB is set properly
+func TestCrossZone(t *testing.T) {
+	runTestAWS(t, "crosszone.example.com", "api_elb_cross_zone", "v1alpha2", false, 1, true, false, nil)
 }
 
 // TestMinimalCloudformation runs the test on a minimum configuration, similar to kops create cluster minimal.example.com --zones us-west-1a
@@ -307,27 +313,8 @@ func runTest(t *testing.T, h *testutils.IntegrationTestHarness, clusterName stri
 		if err != nil {
 			t.Fatalf("unexpected error reading actual terraform output: %v", err)
 		}
-		expectedTF, err := ioutil.ReadFile(path.Join(srcDir, testDataTFPath))
-		if err != nil {
-			t.Fatalf("unexpected error reading expected terraform output: %v", err)
-		}
-		expectedTF = bytes.Replace(expectedTF, []byte("\r\n"), []byte("\n"), -1)
 
-		if !bytes.Equal(actualTF, expectedTF) {
-			diffString := diff.FormatDiff(string(expectedTF), string(actualTF))
-			t.Logf("diff:\n%s\n", diffString)
-
-			if os.Getenv("HACK_UPDATE_EXPECTED_IN_PLACE") != "" {
-				fp := path.Join(srcDir, testDataTFPath)
-				t.Logf("HACK_UPDATE_EXPECTED_IN_PLACE: writing expected output %s", fp)
-				if err := ioutil.WriteFile(fp, actualTF, 0644); err != nil {
-					t.Errorf("error writing terraform output: %v", err)
-				}
-				t.Errorf("terraform output differed from expected")
-				return // Avoid Fatalf as we want to keep going and update all files
-			}
-			t.Fatalf("terraform output differed from expected")
-		}
+		testutils.AssertMatchesFile(t, string(actualTF), path.Join(srcDir, testDataTFPath))
 	}
 
 	// Compare data files if they are provided
@@ -345,6 +332,12 @@ func runTest(t *testing.T, h *testutils.IntegrationTestHarness, clusterName stri
 
 		sort.Strings(expectedDataFilenames)
 		if !reflect.DeepEqual(actualDataFilenames, expectedDataFilenames) {
+			for i := 0; i < len(actualDataFilenames) && i < len(expectedDataFilenames); i++ {
+				if actualDataFilenames[i] != expectedDataFilenames[i] {
+					t.Errorf("diff @%d: %q vs %q", i, actualDataFilenames[i], expectedDataFilenames[i])
+					break
+				}
+			}
 			t.Fatalf("unexpected data files.  actual=%q, expected=%q", actualDataFilenames, expectedDataFilenames)
 		}
 
@@ -492,6 +485,7 @@ func runTestGCE(t *testing.T, clusterName string, srcDir string, version string,
 		"google_compute_instance_template_nodes-" + gce.SafeClusterName(clusterName) + "_metadata_cluster-name",
 		"google_compute_instance_template_nodes-" + gce.SafeClusterName(clusterName) + "_metadata_startup-script",
 		"google_compute_instance_template_nodes-" + gce.SafeClusterName(clusterName) + "_metadata_ssh-keys",
+		"google_compute_instance_template_nodes-" + gce.SafeClusterName(clusterName) + "_metadata_kops-k8s-io-instance-group-name",
 	}
 
 	for i := 0; i < zones; i++ {
@@ -501,6 +495,7 @@ func runTestGCE(t *testing.T, clusterName string, srcDir string, version string,
 		expectedFilenames = append(expectedFilenames, prefix+"cluster-name")
 		expectedFilenames = append(expectedFilenames, prefix+"startup-script")
 		expectedFilenames = append(expectedFilenames, prefix+"ssh-keys")
+		expectedFilenames = append(expectedFilenames, prefix+"kops-k8s-io-instance-group-name")
 	}
 
 	runTest(t, h, clusterName, srcDir, version, private, zones, expectedFilenames, "", nil, nil)
@@ -587,10 +582,6 @@ func runTestCloudformation(t *testing.T, clusterName string, srcDir string, vers
 		if err != nil {
 			t.Fatalf("unexpected error reading actual cloudformation output: %v", err)
 		}
-		expectedCF, err := ioutil.ReadFile(path.Join(srcDir, expectedCfPath))
-		if err != nil {
-			t.Fatalf("unexpected error reading expected cloudformation output: %v", err)
-		}
 
 		// Expand out the UserData base64 blob, as otherwise testing is painful
 		extracted := make(map[string]string)
@@ -625,84 +616,29 @@ func runTestCloudformation(t *testing.T, clusterName string, srcDir string, vers
 		}
 		actualCF = buf.Bytes()
 
-		expectedCFTrimmed := strings.Replace(strings.TrimSpace(string(expectedCF)), "\r\n", "\n", -1)
-		actualCFTrimmed := strings.TrimSpace(string(actualCF))
-		if actualCFTrimmed != expectedCFTrimmed {
-			diffString := diff.FormatDiff(expectedCFTrimmed, actualCFTrimmed)
-			t.Logf("diff:\n%s\n", diffString)
+		testutils.AssertMatchesFile(t, string(actualCF), path.Join(srcDir, expectedCfPath))
 
-			if os.Getenv("KEEP_TEMP_DIR") == "" {
-				t.Logf("(hint: setting KEEP_TEMP_DIR will preserve test output")
-			} else {
-				t.Logf("actual terraform output in %s", actualPath)
+		// test extracted values
+		{
+			actual := make(map[string]string)
+
+			for k, v := range extracted {
+				// Strip carriage return as expectedValue is stored in a yaml string literal
+				// and yaml block quoting doesn't seem to support \r in a string
+				v = strings.Replace(v, "\r", "", -1)
+
+				actual[k] = v
 			}
 
-			if os.Getenv("HACK_UPDATE_EXPECTED_IN_PLACE") != "" {
-				fp := path.Join(srcDir, expectedCfPath)
-				t.Logf("HACK_UPDATE_EXPECTED_IN_PLACE: writing expected output %s", fp)
-				if err := ioutil.WriteFile(fp, actualCF, 0644); err != nil {
-					t.Errorf("error writing expected output file %q: %v", fp, err)
-				}
-			}
-
-			t.Fatalf("cloudformation output differed from expected. Test file: %s", path.Join(srcDir, expectedCfPath))
-		}
-
-		fp := path.Join(srcDir, expectedCfPath+".extracted.yaml")
-		expectedExtracted, err := ioutil.ReadFile(fp)
-		if err != nil {
-			t.Fatalf("unexpected error reading expected extracted cloudformation output: %v", err)
-		}
-
-		expected := make(map[string]string)
-		err = yaml.Unmarshal(expectedExtracted, &expected)
-		if err != nil {
-			t.Fatalf("unexpected error unmarshal expected extracted cloudformation output: %v", err)
-		}
-
-		if len(extracted) != len(expected) {
-			t.Fatalf("error differed number of cloudformation in expected and extracted: %v", err)
-		}
-
-		actual := make(map[string]string)
-
-		for key, expectedValue := range expected {
-			extractedValue, ok := extracted[key]
-			if !ok {
-				t.Fatalf("unexpected error expected cloudformation not found for k: %v", key)
-			}
-
-			actual[key] = extractedValue
-
-			// Strip carriage return as expectedValue is stored in a yaml string literal
-			// and yaml block quoting doesn't seem to support \r in a string
-			extractedValueTrimmed := strings.Replace(extractedValue, "\r", "", -1)
-
-			if expectedValue != extractedValueTrimmed {
-				diffString := diff.FormatDiff(expectedValue, extractedValueTrimmed)
-				t.Logf("diff for key %s:\n%s\n\n\n\n\n\n", key, diffString)
-				t.Errorf("cloudformation output differed from expected. Test file: %s", path.Join(srcDir, expectedCfPath+".extracted.yaml"))
-			}
-		}
-
-		if os.Getenv("HACK_UPDATE_EXPECTED_IN_PLACE") != "" {
-			t.Logf("HACK_UPDATE_EXPECTED_IN_PLACE: writing expected output %s", fp)
-
-			// We replace the \r characters so that the yaml output (should) be block-quoted
-			// Literal quoting is sadly unreadable...
-			for k, v := range actual {
-				actual[k] = strings.Replace(v, "\r", "", -1)
-			}
-
-			b, err := yaml.Marshal(actual)
+			actualExtracted, err := yaml.Marshal(actual)
 			if err != nil {
-				t.Errorf("error serializing cloudformation output: %v", err)
+				t.Fatalf("error serializing yaml: %v", err)
 			}
-			if err := ioutil.WriteFile(fp, b, 0644); err != nil {
-				t.Errorf("error writing cloudformation output: %v", err)
-			}
+
+			testutils.AssertMatchesFile(t, string(actualExtracted), path.Join(srcDir, expectedCfPath+".extracted.yaml"))
 		}
 
+		testutils.AssertMatchesFile(t, string(actualCF), path.Join(srcDir, expectedCfPath))
 	}
 }
 

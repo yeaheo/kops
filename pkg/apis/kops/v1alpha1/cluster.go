@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -56,6 +56,8 @@ type ClusterSpec struct {
 	ConfigBase string `json:"configBase,omitempty"`
 	// The CloudProvider to use (aws or gce)
 	CloudProvider string `json:"cloudProvider,omitempty"`
+	// GossipConfig for the cluster assuming the use of gossip DNS
+	GossipConfig *GossipConfig `json:"gossipConfig,omitempty"`
 	// The version of kubernetes to install (optional, and can be a "spec" like stable)
 	KubernetesVersion string `json:"kubernetesVersion,omitempty"`
 	// Configuration of zones we are targeting
@@ -93,6 +95,8 @@ type ClusterSpec struct {
 	// Note that DNSZone can either by the host name of the zone (containing dots),
 	// or can be an identifier for the zone.
 	DNSZone string `json:"dnsZone,omitempty"`
+	// DNSControllerGossipConfig for the cluster assuming the use of gossip DNS
+	DNSControllerGossipConfig *DNSControllerGossipConfig `json:"dnsControllerGossipConfig,omitempty"`
 	// AdditionalSANs adds additional Subject Alternate Names to apiserver cert that kops generates
 	AdditionalSANs []string `json:"additionalSans,omitempty"`
 	// ClusterDNSDomain is the suffix we use for internal DNS names (normally cluster.local)
@@ -102,6 +106,8 @@ type ClusterSpec struct {
 	Multizone *bool `json:"multizone,omitempty"`
 	// ServiceClusterIPRange is the CIDR, from the internal network, where we allocate IPs for services
 	ServiceClusterIPRange string `json:"serviceClusterIPRange,omitempty"`
+	// PodCIDR is the CIDR from which we allocate IPs for pods
+	PodCIDR string `json:"podCIDR,omitempty"`
 	// NonMasqueradeCIDR is the CIDR for the internal k8s network (on which pods & services live)
 	// It cannot overlap ServiceClusterIPRange
 	NonMasqueradeCIDR string `json:"nonMasqueradeCIDR,omitempty"`
@@ -168,6 +174,9 @@ type ClusterSpec struct {
 	DisableSubnetTags bool `json:"DisableSubnetTags,omitempty"`
 	// Target allows for us to nest extra config for targets such as terraform
 	Target *TargetSpec `json:"target,omitempty"`
+	// UseHostCertificates will mount /etc/ssl/certs to inside needed containers.
+	// This is needed if some APIs do have self-signed certs
+	UseHostCertificates *bool `json:"useHostCertificates,omitempty"`
 }
 
 // NodeAuthorizationSpec is used to node authorization
@@ -188,6 +197,8 @@ type NodeAuthorizerSpec struct {
 	NodeURL string `json:"nodeURL,omitempty"`
 	// Port is the port the service is running on the master
 	Port int `json:"port,omitempty"`
+	// Interval the time between retires for authorization request
+	Interval *metav1.Duration `json:"interval,omitempty"`
 	// Timeout the max time for authorization request
 	Timeout *metav1.Duration `json:"timeout,omitempty"`
 	// TokenTTL is the max ttl for an issued token
@@ -277,6 +288,14 @@ type KopeioAuthenticationSpec struct {
 type AwsAuthenticationSpec struct {
 	// Image is the AWS IAM Authenticator docker image to use
 	Image string `json:"image,omitempty"`
+	// MemoryRequest memory request of AWS IAM Authenticator container. Default 20Mi
+	MemoryRequest *resource.Quantity `json:"memoryRequest,omitempty"`
+	// CPURequest CPU request of AWS IAM Authenticator container. Default 10m
+	CPURequest *resource.Quantity `json:"cpuRequest,omitempty"`
+	// MemoryLimit memory limit of AWS IAM Authenticator container. Default 20Mi
+	MemoryLimit *resource.Quantity `json:"memoryLimit,omitempty"`
+	// CPULimit CPU limit of AWS IAM Authenticator container. Default 10m
+	CPULimit *resource.Quantity `json:"cpuLimit,omitempty"`
 }
 
 type AuthorizationSpec struct {
@@ -331,6 +350,8 @@ type LoadBalancerAccessSpec struct {
 	UseForInternalApi bool `json:"useForInternalApi,omitempty"`
 	// SSLCertificate allows you to specify the ACM cert to be used the LB
 	SSLCertificate string `json:"sslCertificate,omitempty"`
+	// CrossZoneLoadBalancing allows you to enable the cross zone load balancing
+	CrossZoneLoadBalancing *bool `json:"crossZoneLoadBalancing,omitempty"`
 }
 
 // KubeDNSConfig defines the kube dns configuration
@@ -341,6 +362,8 @@ type KubeDNSConfig struct {
 	CacheMaxConcurrent int `json:"cacheMaxConcurrent,omitempty"`
 	// Domain is the dns domain
 	Domain string `json:"domain,omitempty"`
+	// ExternalCoreFile is used to provide a complete CoreDNS CoreFile by the user - ignores other provided flags which modify the CoreFile.
+	ExternalCoreFile string `json:"externalCoreFile,omitempty"`
 	// Image is the name of the docker image to run - @deprecated as this is now in the addon
 	Image string `json:"image,omitempty"`
 	// Replicas is the number of pod replicas - @deprecated as this is now in the addon, and controlled by autoscaler
@@ -490,4 +513,19 @@ type TerraformSpec struct {
 
 func (t *TerraformSpec) IsEmpty() bool {
 	return t.ProviderExtraConfig == nil
+}
+
+type GossipConfig struct {
+	Protocol  *string       `json:"protocol,omitempty"`
+	Listen    *string       `json:"listen,omitempty"`
+	Secret    *string       `json:"secret,omitempty"`
+	Secondary *GossipConfig `json:"secondary,omitempty"`
+}
+
+type DNSControllerGossipConfig struct {
+	Protocol  *string                    `json:"protocol,omitempty"`
+	Listen    *string                    `json:"listen,omitempty"`
+	Secret    *string                    `json:"secret,omitempty"`
+	Secondary *DNSControllerGossipConfig `json:"secondary,omitempty"`
+	Seed      *string                    `json:"seed,omitempty"`
 }

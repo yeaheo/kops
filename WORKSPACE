@@ -6,25 +6,31 @@ load("@bazel_tools//tools/build_defs/repo:git.bzl", "git_repository")
 
 http_archive(
     name = "io_bazel_rules_go",
-    urls = ["https://github.com/bazelbuild/rules_go/releases/download/0.18.5/rules_go-0.18.5.tar.gz"],
-    sha256 = "a82a352bffae6bee4e95f68a8d80a70e87f42c4741e6a448bec11998fcc82329",
+    sha256 = "513c12397db1bc9aa46dd62f02dd94b49a9b5d17444d49b5a04c5a89f3053c1c",
+    urls = [
+        "https://storage.googleapis.com/bazel-mirror/github.com/bazelbuild/rules_go/releases/download/v0.19.5/rules_go-v0.19.5.tar.gz",
+        "https://github.com/bazelbuild/rules_go/releases/download/v0.19.5/rules_go-v0.19.5.tar.gz",
+    ],
 )
 
 http_archive(
     name = "bazel_gazelle",
-    urls = ["https://github.com/bazelbuild/bazel-gazelle/releases/download/0.17.0/bazel-gazelle-0.17.0.tar.gz"],
-    sha256 = "3c681998538231a2d24d0c07ed5a7658cb72bfb5fd4bf9911157c0e9ac6a2687",
+    sha256 = "7fc87f4170011201b1690326e8c16c5d802836e3a0d617d8f75c3af2b23180c4",
+    urls = [
+        "https://storage.googleapis.com/bazel-mirror/github.com/bazelbuild/bazel-gazelle/releases/download/0.18.2/bazel-gazelle-0.18.2.tar.gz",
+        "https://github.com/bazelbuild/bazel-gazelle/releases/download/0.18.2/bazel-gazelle-0.18.2.tar.gz",
+    ],
 )
 
-load("@io_bazel_rules_go//go:deps.bzl", "go_rules_dependencies", "go_register_toolchains")
+load("@io_bazel_rules_go//go:deps.bzl", "go_register_toolchains", "go_rules_dependencies")
 
 go_rules_dependencies()
 
 go_register_toolchains(
-    go_version = "1.12.5",
+    go_version = "1.12.9",
 )
 
-load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies")
+load("@bazel_gazelle//:deps.bzl", "gazelle_dependencies", "go_repository")
 
 gazelle_dependencies()
 
@@ -33,8 +39,10 @@ gazelle_dependencies()
 
 git_repository(
     name = "io_bazel_rules_docker",
+    commit = "267cc613f61921caa5540a6a9437d939f953a90b",
     remote = "https://github.com/bazelbuild/rules_docker.git",
-    tag = "v0.7.0",
+    shallow_since = "1568404961 -0400",
+    # tag = "v0.10.1",
 )
 
 load(
@@ -43,6 +51,17 @@ load(
 )
 
 container_repositories()
+
+load("@io_bazel_rules_docker//repositories:deps.bzl", container_deps = "deps")
+
+container_deps()
+
+load(
+    "@io_bazel_rules_docker//repositories:go_repositories.bzl",
+    docker_go_deps = "go_deps",
+)
+
+docker_go_deps()
 
 load(
     "@io_bazel_rules_docker//container:container.bzl",
@@ -60,8 +79,9 @@ container_pull(
 
 git_repository(
     name = "distroless",
+    commit = "f905a6636c5106c36cc979bdcc19f0fe4fc01ede",
     remote = "https://github.com/googlecloudplatform/distroless.git",
-    commit = "3585653b2b0d33c3fb369b907ef68df8344fd2ad",
+    #shallow_since = "1570036739 -0700",
 )
 
 load(
@@ -73,8 +93,8 @@ package_manager_repositories()
 
 load(
     "@distroless//package_manager:dpkg.bzl",
-    "dpkg_src",
     "dpkg_list",
+    "dpkg_src",
 )
 
 dpkg_src(
@@ -101,8 +121,8 @@ dpkg_list(
         "libprocps6",
         "libseccomp2",
         "procps",
-        "systemd-shim",
         "systemd",
+        "systemd-shim",
     ],
     sources = [
         "@debian_stretch//file:Packages.json",
@@ -114,13 +134,43 @@ load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
 
 http_file(
     name = "utils_tar_gz",
-    urls = ["https://kubeupv2.s3.amazonaws.com/kops/1.12.1/linux/amd64/utils.tar.gz"],
     sha256 = "5c956247241dd94300ba13c6dd9cb5843382d4255125a7a6639d2aad68b9050c",
+    urls = ["https://kubeupv2.s3.amazonaws.com/kops/1.12.1/linux/amd64/utils.tar.gz"],
 )
 
+# TODO(fejta): use load.bzl, repos.bzl from repo-infra
 git_repository(
     name = "io_k8s_repo_infra",
-    commit = "4ce715fbe67d8fbed05ec2bb47a148e754100a4b",
+    commit = "db6ceb5f992254db76af7c25db2edc5469b5ea82",
     remote = "https://github.com/kubernetes/repo-infra.git",
-    shallow_since = "1517262872 -0800",
+    shallow_since = "1570128715 -0700",
+)
+
+http_archive(
+    name = "bazel_toolchains",
+    sha256 = "a019fbd579ce5aed0239de865b2d8281dbb809efd537bf42e0d366783e8dec65",
+    strip_prefix = "bazel-toolchains-0.29.2",
+    urls = [
+        "https://mirror.bazel.build/github.com/bazelbuild/bazel-toolchains/archive/0.29.2.tar.gz",
+        "https://github.com/bazelbuild/bazel-toolchains/archive/0.29.2.tar.gz",
+    ],
+)
+
+load("@bazel_toolchains//rules:rbe_repo.bzl", "rbe_autoconfig")
+
+rbe_autoconfig(name = "rbe_default")
+
+go_repository(
+    name = "com_github_google_go_containerregistry",
+    importpath = "github.com/google/go-containerregistry",
+    sum = "h1:PTrxTL8TNRbZts4KqdJMsqRlrdjoiKFDq6MVitj8mPk=",
+    version = "v0.0.0-20190829181151-21b2e01cec04",
+)
+
+# Start using distroless base
+container_pull(
+    name = "distroless_base",
+    digest = "sha256:a4624843fb1d7d43d9e3d62f6d76b51b6e02b3d03221e29fef4e223d81ef3378",
+    registry = "gcr.io",
+    repository = "distroless/base",
 )

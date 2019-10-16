@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"k8s.io/kops/util/pkg/proxy"
 	"os"
 	"strings"
 
@@ -38,14 +37,16 @@ import (
 	"k8s.io/kops/pkg/k8scodecs"
 	"k8s.io/kops/pkg/kubemanifest"
 	"k8s.io/kops/pkg/model"
+	"k8s.io/kops/pkg/wellknownports"
 	"k8s.io/kops/upup/pkg/fi"
 	"k8s.io/kops/upup/pkg/fi/cloudup/awsup"
+	"k8s.io/kops/upup/pkg/fi/cloudup/do"
 	"k8s.io/kops/upup/pkg/fi/cloudup/gce"
+	"k8s.io/kops/upup/pkg/fi/cloudup/openstack"
 	"k8s.io/kops/upup/pkg/fi/fitasks"
+	"k8s.io/kops/util/pkg/env"
 	"k8s.io/kops/util/pkg/exec"
 )
-
-const metaFilename = "_etcd_backup.meta"
 
 // EtcdManagerBuilder builds the manifest for the etcd-manager
 type EtcdManagerBuilder struct {
@@ -188,7 +189,7 @@ metadata:
   namespace: kube-system
 spec:
   containers:
-  - image: kopeio/etcd-manager:3.0.20190516
+  - image: kopeio/etcd-manager:3.0.20190930
     name: etcd-manager
     resources:
       requests:
@@ -286,9 +287,9 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster *kops.EtcdClusterSpec) (*v1.Po
 	pod.Labels["k8s-app"] = pod.Name
 
 	// TODO: Use a socket file for the quarantine port
-	quarantinedClientPort := 3994
+	quarantinedClientPort := wellknownports.EtcdMainQuarantinedClientPort
 
-	grpcPort := 3996
+	grpcPort := wellknownports.EtcdMainGRPC
 
 	// The dns suffix logic mirrors the existing logic, so we should be compatible with existing clusters
 	// (etcd makes it difficult to change peer urls, treating it as a cluster event, for reasons unknown)
@@ -310,8 +311,8 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster *kops.EtcdClusterSpec) (*v1.Po
 	case "events":
 		clientPort = 4002
 		peerPort = 2381
-		grpcPort = 3997
-		quarantinedClientPort = 3995
+		grpcPort = wellknownports.EtcdEventsGRPC
+		quarantinedClientPort = wellknownports.EtcdEventsQuarantinedClientPort
 
 	default:
 		return nil, fmt.Errorf("unknown etcd cluster key %q", etcdCluster.Name)
@@ -380,6 +381,28 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster *kops.EtcdClusterSpec) (*v1.Po
 			}
 			config.VolumeNameTag = gce.GceLabelNameEtcdClusterPrefix + etcdCluster.Name
 
+		case kops.CloudProviderDO:
+			config.VolumeProvider = "do"
+
+			// DO does not support . in tags / names
+			safeClusterName := do.SafeClusterName(b.Cluster.Name)
+
+			config.VolumeTag = []string{
+				fmt.Sprintf("%s=%s", do.TagKubernetesClusterNamePrefix, safeClusterName),
+				do.TagKubernetesClusterIndex,
+			}
+			config.VolumeNameTag = do.TagNameEtcdClusterPrefix + etcdCluster.Name
+
+		case kops.CloudProviderOpenstack:
+			config.VolumeProvider = "openstack"
+
+			config.VolumeTag = []string{
+				openstack.TagNameEtcdClusterPrefix + etcdCluster.Name,
+				openstack.TagNameRolePrefix + "master=1",
+				fmt.Sprintf("%s=%s", openstack.TagClusterName, b.Cluster.Name),
+			}
+			config.VolumeNameTag = openstack.TagNameEtcdClusterPrefix + etcdCluster.Name
+
 		default:
 			return nil, fmt.Errorf("CloudProvider %q not supported with etcd-manager", b.Cluster.Spec.CloudProvider)
 		}
@@ -425,9 +448,29 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster *kops.EtcdClusterSpec) (*v1.Po
 				},
 			},
 		})
+
+		if fi.BoolValue(b.Cluster.Spec.UseHostCertificates) {
+			container.VolumeMounts = append(container.VolumeMounts, v1.VolumeMount{
+				Name:      "etc-ssl-certs",
+				MountPath: "/etc/ssl/certs",
+				ReadOnly:  true,
+			})
+			hostPathDirectoryOrCreate := v1.HostPathDirectoryOrCreate
+			pod.Spec.Volumes = append(pod.Spec.Volumes, v1.Volume{
+				Name: "etc-ssl-certs",
+				VolumeSource: v1.VolumeSource{
+					HostPath: &v1.HostPathVolumeSource{
+						Path: "/etc/ssl/certs",
+						Type: &hostPathDirectoryOrCreate,
+					},
+				},
+			})
+		}
 	}
 
-	container.Env = proxy.GetProxyEnvVars(b.Cluster.Spec.EgressProxy)
+	envMap := env.BuildSystemComponentEnvVars(&b.Cluster.Spec)
+
+	container.Env = envMap.ToEnvVars()
 
 	{
 		foundPKI := false
@@ -448,6 +491,7 @@ func (b *EtcdManagerBuilder) buildPod(etcdCluster *kops.EtcdClusterSpec) (*v1.Po
 	}
 
 	kubemanifest.MarkPodAsCritical(pod)
+	kubemanifest.MarkPodAsClusterCritical(pod)
 
 	return pod, nil
 }

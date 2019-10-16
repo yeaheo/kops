@@ -135,6 +135,12 @@ resource "aws_autoscaling_group" "bastion-private-shared-subnet-example-com" {
     propagate_at_launch = true
   }
 
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "bastion"
+    propagate_at_launch = true
+  }
+
   metrics_granularity = "1Minute"
   enabled_metrics     = ["GroupDesiredCapacity", "GroupInServiceInstances", "GroupMaxSize", "GroupMinSize", "GroupPendingInstances", "GroupStandbyInstances", "GroupTerminatingInstances", "GroupTotalInstances"]
 }
@@ -164,6 +170,12 @@ resource "aws_autoscaling_group" "master-us-test-1a-masters-private-shared-subne
     propagate_at_launch = true
   }
 
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "master-us-test-1a"
+    propagate_at_launch = true
+  }
+
   metrics_granularity = "1Minute"
   enabled_metrics     = ["GroupDesiredCapacity", "GroupInServiceInstances", "GroupMaxSize", "GroupMinSize", "GroupPendingInstances", "GroupStandbyInstances", "GroupTerminatingInstances", "GroupTotalInstances"]
 }
@@ -190,6 +202,12 @@ resource "aws_autoscaling_group" "nodes-private-shared-subnet-example-com" {
   tag = {
     key                 = "k8s.io/role/node"
     value               = "1"
+    propagate_at_launch = true
+  }
+
+  tag = {
+    key                 = "kops.k8s.io/instancegroup"
+    value               = "nodes"
     propagate_at_launch = true
   }
 
@@ -248,7 +266,8 @@ resource "aws_elb" "api-private-shared-subnet-example-com" {
     timeout             = 5
   }
 
-  idle_timeout = 300
+  cross_zone_load_balancing = false
+  idle_timeout              = 300
 
   tags = {
     KubernetesCluster                                         = "private-shared-subnet.example.com"
@@ -342,7 +361,7 @@ resource "aws_key_pair" "kubernetes-private-shared-subnet-example-com-c4a6ed9aa8
 
 resource "aws_launch_configuration" "bastion-private-shared-subnet-example-com" {
   name_prefix                 = "bastion.private-shared-subnet.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "t2.micro"
   key_name                    = "${aws_key_pair.kubernetes-private-shared-subnet-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.bastions-private-shared-subnet-example-com.id}"
@@ -364,7 +383,7 @@ resource "aws_launch_configuration" "bastion-private-shared-subnet-example-com" 
 
 resource "aws_launch_configuration" "master-us-test-1a-masters-private-shared-subnet-example-com" {
   name_prefix                 = "master-us-test-1a.masters.private-shared-subnet.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "m3.medium"
   key_name                    = "${aws_key_pair.kubernetes-private-shared-subnet-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.masters-private-shared-subnet-example-com.id}"
@@ -392,7 +411,7 @@ resource "aws_launch_configuration" "master-us-test-1a-masters-private-shared-su
 
 resource "aws_launch_configuration" "nodes-private-shared-subnet-example-com" {
   name_prefix                 = "nodes.private-shared-subnet.example.com-"
-  image_id                    = "ami-15000000"
+  image_id                    = "ami-11400000"
   instance_type               = "t2.medium"
   key_name                    = "${aws_key_pair.kubernetes-private-shared-subnet-example-com-c4a6ed9aa889b9e2c39cd663eb9c7157.id}"
   iam_instance_profile        = "${aws_iam_instance_profile.nodes-private-shared-subnet-example-com.id}"

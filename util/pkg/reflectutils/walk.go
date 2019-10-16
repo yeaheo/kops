@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -234,7 +234,7 @@ func FormatValue(value interface{}) string {
 		return fmt.Sprintf("%q", t)
 	case fmt.Stringer:
 		// anything that defines String() is better than raw struct
-		return fmt.Sprintf("%s", t.String())
+		return t.String()
 	default:
 		// fallback to raw struct
 		// TODO: internal types have panic guards against json.Marshaling to prevent

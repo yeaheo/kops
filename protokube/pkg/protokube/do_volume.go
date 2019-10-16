@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -114,7 +114,6 @@ func (d *DOVolumes) AttachVolume(volume *Volume) error {
 
 		time.Sleep(10 * time.Second)
 	}
-
 }
 
 func (d *DOVolumes) FindVolumes() ([]*Volume, error) {

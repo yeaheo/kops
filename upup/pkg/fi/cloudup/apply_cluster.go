@@ -1,5 +1,5 @@
 /*
-Copyright 2016 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -85,8 +85,6 @@ var (
 	AlphaAllowDO = featureflag.New("AlphaAllowDO", featureflag.Bool(false))
 	// AlphaAllowGCE is a feature flag that gates GCE support while it is alpha
 	AlphaAllowGCE = featureflag.New("AlphaAllowGCE", featureflag.Bool(false))
-	// AlphaAllowOpenstack is a feature flag that gates OpenStack support while it is alpha
-	AlphaAllowOpenstack = featureflag.New("AlphaAllowOpenstack", featureflag.Bool(false))
 	// AlphaAllowVsphere is a feature flag that gates vsphere support while it is alpha
 	AlphaAllowVsphere = featureflag.New("AlphaAllowVsphere", featureflag.Bool(false))
 	// AlphaAllowALI is a feature flag that gates aliyun support while it is alpha
@@ -275,9 +273,7 @@ func (c *ApplyClusterCmd) Run() error {
 
 	// Normalize k8s version
 	versionWithoutV := strings.TrimSpace(cluster.Spec.KubernetesVersion)
-	if strings.HasPrefix(versionWithoutV, "v") {
-		versionWithoutV = versionWithoutV[1:]
-	}
+	versionWithoutV = strings.TrimPrefix(versionWithoutV, "v")
 	if cluster.Spec.KubernetesVersion != versionWithoutV {
 		klog.Warningf("Normalizing kubernetes version: %q -> %q", cluster.Spec.KubernetesVersion, versionWithoutV)
 		cluster.Spec.KubernetesVersion = versionWithoutV
@@ -303,7 +299,7 @@ func (c *ApplyClusterCmd) Run() error {
 			fmt.Println("")
 			fmt.Printf(starline)
 			fmt.Println("")
-			fmt.Println("Kubelet anonymousAuth is currently turned on. This allows RBAC escalation and remote code execution possibilites.")
+			fmt.Println("Kubelet anonymousAuth is currently turned on. This allows RBAC escalation and remote code execution possibilities.")
 			fmt.Println("It is highly recommended you turn it off by setting 'spec.kubelet.anonymousAuth' to 'false' via 'kops edit cluster'")
 			fmt.Println("")
 			fmt.Println("See https://github.com/kubernetes/kops/blob/master/docs/security.md#kubelet-api")
@@ -517,9 +513,6 @@ func (c *ApplyClusterCmd) Run() error {
 
 	case kops.CloudProviderOpenstack:
 		{
-			if !AlphaAllowOpenstack.Enabled() {
-				return fmt.Errorf("Openstack support is currently alpha, and is feature-gated.  export KOPS_FEATURE_FLAGS=AlphaAllowOpenstack")
-			}
 
 			osCloud := cloud.(openstack.OpenstackCloud)
 			region = osCloud.Region()
@@ -1191,12 +1184,12 @@ func (c *ApplyClusterCmd) AddFileAssets(assetBuilder *assets.AssetBuilder) error
 		c.Assets = append(c.Assets, BuildMirroredAsset(utilsLocation, hash))
 	}
 
-	n, hash, err := NodeUpLocation(assetBuilder)
+	asset, err := NodeUpAsset(assetBuilder)
 	if err != nil {
 		return err
 	}
-	c.NodeUpSource = n.String()
-	c.NodeUpHash = hash.Hex()
+	c.NodeUpSource = strings.Join(asset.Locations, ",")
+	c.NodeUpHash = asset.Hash.Hex()
 
 	// Explicitly add the protokube image,
 	// otherwise when the Target is DryRun this asset is not added
@@ -1276,9 +1269,7 @@ func (c *ApplyClusterCmd) BuildNodeUpConfig(assetBuilder *assets.AssetBuilder, i
 	}
 
 	config := &nodeup.Config{}
-	for _, tag := range nodeUpTags.List() {
-		config.Tags = append(config.Tags, tag)
-	}
+	config.Tags = append(config.Tags, nodeUpTags.List()...)
 
 	for _, a := range c.Assets {
 		config.Assets = append(config.Assets, a.CompactString())
@@ -1303,6 +1294,30 @@ func (c *ApplyClusterCmd) BuildNodeUpConfig(assetBuilder *assets.AssetBuilder, i
 			}
 
 			baseURL.Path = path.Join(baseURL.Path, "/bin/linux/amd64/", component+".tar")
+
+			u, hash, err := assetBuilder.RemapFileAndSHA(baseURL)
+			if err != nil {
+				return nil, err
+			}
+
+			image := &nodeup.Image{
+				Sources: []string{u.String()},
+				Hash:    hash.Hex(),
+			}
+			images = append(images, image)
+		}
+	}
+
+	// `docker load` our images when using a KOPS_BASE_URL, so we
+	// don't need to push/pull from a registry
+	if os.Getenv("KOPS_BASE_URL") != "" {
+		for _, name := range []string{"kops-controller", "dns-controller"} {
+			baseURL, err := url.Parse(os.Getenv("KOPS_BASE_URL"))
+			if err != nil {
+				return nil, err
+			}
+
+			baseURL.Path = path.Join(baseURL.Path, "/images/"+name+".tar.gz")
 
 			u, hash, err := assetBuilder.RemapFileAndSHA(baseURL)
 			if err != nil {

@@ -1,5 +1,5 @@
 /*
-Copyright 2018 The Kubernetes Authors.
+Copyright 2019 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -89,7 +89,13 @@ func (b *NodeAuthorizationBuilder) Build(c *fi.ModelBuilderContext) error {
 		man.Set("Service", "ExecStartPre", "/bin/bash -c 'while [ ! -f "+clientCert+" ]; do sleep 5; done; sleep 5'")
 
 		interval := 10 * time.Second
+		if na.Interval != nil {
+			interval = na.Interval.Duration
+		}
 		timeout := 5 * time.Minute
+		if na.Timeout != nil {
+			timeout = na.Timeout.Duration
+		}
 
 		// @node: using a string array just to make it easier to read
 		dockerCmd := []string{
